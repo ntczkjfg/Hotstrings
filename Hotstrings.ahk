@@ -352,6 +352,7 @@ endchar = \
 ::proportional::∝
 ::!congruent::≆
 ::congruent::≅
+::=~::≅
 ::!===::≢
 ::===::≡
 
@@ -680,7 +681,7 @@ endchar = \
 ::snowflake::❄️
 ;::x::❌
 ::<3::❤️
-::star::⭐
+;::star::⭐
 
 ::rainbow::🌈
 ::globe1::🌍
@@ -766,6 +767,8 @@ endchar = \
 ::ghost::👻
 ::alien::👽
 ::skull::💀
+::dead::💀
+::nervous::😰
 ::hair::💁
 ::lips::💋
 ::diamond::💎
@@ -811,6 +814,7 @@ endchar = \
 ::sword::🗡️
 
 :::D::😃
+::=D::😄
 ::^_^::😁
 ::*_*::🤩
 ::XD::😆
@@ -835,16 +839,23 @@ endchar = \
 ::>:(::😠
 :::(::🙁
 ::>=(::😠
-::mad::😠
+::mad::😤
 ::angry::😠
+::bull::😤
+::exhale::😤
 :::S::🥴
 :::')::🥲
 ::scared::😨
+::worried::😨
 ::sleepy::😪
-:::'(::😭
+:::'(::😢
 ::sob::😭
 ::cry::😭
-::shocked::😮
+::grimace::😬
+::shocked::😳
+::dizzy::💫
+::shootingstar::💫
+
 :::O::😮
 ::surprised::😲
 ::scream::😱
@@ -860,6 +871,7 @@ endchar = \
 ::mask::😷
 ::happycat::😺
 ::laughcat::😹
+::lolcat::😹
 ::smilecat::😸
 ::lovecat::😻
 ::smirkcat::😼
@@ -900,6 +912,8 @@ endchar = \
 ::injured::🤕
 ::robot::🤖
 ::hug::🤗
+::hugging::🫂
+::cold::🥶
 ::horns::🤘
 ::callme::🤙
 ::handshake::🤝
@@ -976,6 +990,7 @@ endchar = \
 
 
 ; Problematic Hotstrings that interrupt other Hotstrings if placed before them in this file.  These appear above but are commented out
+::star::⭐
 ::eta::η
 ::*::•
 ::/::⁄
