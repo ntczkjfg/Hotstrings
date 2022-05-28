@@ -619,6 +619,7 @@ endchar = \
 ::trans::⚧
 ::perpendicular::⟂
 ::rightangle::⦜
+::triangle::△
 ::angle::∠
 ::-bar::̅
 ::-overscore::̅
