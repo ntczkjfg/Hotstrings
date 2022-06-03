@@ -969,6 +969,9 @@ endchar = \
 ::tss::🐍
 ::hot::🥵
 ::sweat::🥵
+::spicy::🥵
+::relief::😅
+::phew::😅
 ::fart::💨
 ::red::🟥
 ::orange::🟧
