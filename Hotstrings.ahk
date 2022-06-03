@@ -988,6 +988,10 @@ endchar = \
 ::brown2::🟤
 ::black2::⚫
 ::white2::⚪
+::sound::🔊
+::audio::🔊
+::mute::🔈
+::muted::🔈
 
 
 ; Problematic Hotstrings that interrupt other Hotstrings if placed before them in this file.  These appear above but are commented out
