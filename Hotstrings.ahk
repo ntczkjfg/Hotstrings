@@ -855,6 +855,7 @@ endchar = \
 :::x::😬
 ::shocked::😳
 ::dizzy::💫
+::xp::😝
 ::shootingstar::💫
 
 :::O::😮
