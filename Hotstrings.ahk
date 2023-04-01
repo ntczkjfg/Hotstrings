@@ -654,7 +654,6 @@ endchar = \
 ::^_^::😁
 ::*_*::🤩
 ::XD::😆
-:::S::😵‍💫
 ::B)::😎
 :::|::😐
 :::/::😕
@@ -702,7 +701,7 @@ endchar = \
 ::monocle::🧐
 ::sleep::😴
 ::sleeping::😴
-::dizzy::😵
+::dizzy::😵‍💫
 ::nomouth::😶
 ::mask::😷
 ::upsidedown::🙃
@@ -751,6 +750,7 @@ endchar = \
 ::santa::🎅
 ::santaclaus::🎅
 ::mrsclaus::🤶
+::fuck::🤬
 ::skull::💀
 ::dead::💀
 ::alien::👽
@@ -829,6 +829,8 @@ endchar = \
 ::burningheart::❤️‍🔥
 ::bleedingheart::❣️
 ::<3!::❣️
+::handheart::🫶
+::handsheart::🫶
 ::plainheart::♡
 ::textheart::♡
 ::heart::❤️
@@ -1021,6 +1023,7 @@ endchar = \
 ::textnote::♪
 ::plainstar::★
 ::textstar::★
+::hollowstar::☆
 ::crossbones::☠️
 
 
