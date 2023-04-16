@@ -1797,3 +1797,62 @@ return
 	; Backspaces typed text, outputs new text
 	Send % "{Backspace " backspace "}{Raw}" out
 return
+
+; Bulk alternating caps
+::mock::
+	; Because ahk is weird, breaks suspend otherwise
+	Sleep -1
+	
+	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
+	Suspend
+	input, text, MVL1000T90, %endchar%
+	Suspend
+	
+	; Just give up if they took too long or typed too much
+	if ErrorLevel in Max,Timeout
+		return
+	
+	; If they didn't type anything, take the text from the clipboard
+	if StrLen(text) = 0
+	{
+		text := clipboard
+		if StrLen(text) > 5000
+		{
+			return
+		}
+		backspace := 1
+	}
+	
+	; Detects if user pasted text, uses that if so
+	else if Asc(text) = 22
+	{
+		text := clipboard
+		if StrLen(text) > 5000
+		{
+			return
+		}
+		backspace := StrLen(text) + 1
+	}
+	else
+	{
+		backspace := StrLen(text) + 1
+	}
+	
+	map := {"a":"a", "b":"b", "c":"c", "d":"d", "e":"e", "f":"f", "g":"g", "h":"h", "i":"i", "j":"j", "k":"k", "l":"l", "m":"m", "n":"n", "o":"o", "p":"p", "q":"q", "r":"r", "s":"s", "t":"t", "u":"u", "v":"v", "w":"w", "x":"x", "y":"y", "z":"z"}
+	mapUpper := {"a":"A", "b":"B", "c":"C", "d":"D", "e":"E", "f":"F", "g":"G", "h":"H", "i":"I", "j":"J", "k":"K", "l":"L", "m":"M", "n":"N", "o":"O", "p":"P", "q":"Q", "r":"R", "s":"S", "t":"T", "u":"U", "v":"V", "w":"W", "x":"X", "y":"Y", "z":"Z"}
+
+	
+	out := ""
+	lowercase := 1
+	loop, parse, text
+	{
+		if lowercase
+			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+		else
+			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
+		if A_LoopField <> " "
+			lowercase := !lowercase
+	}
+	; Backspaces typed text, outputs new text
+	Send % "{Backspace " backspace "}{Raw}" out
+return
