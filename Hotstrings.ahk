@@ -693,11 +693,12 @@ endchar = \
 ::sleepy::😪
 ::sob::😭
 ::shocked::😳
+::flush::😳
+::flushed::😳
+::embarrassed::😳
 ::surprised::😲
 ::scream::😱
 ::astonished::😲
-::flush::😳
-::flushed::😳
 ::monocle::🧐
 ::sleep::😴
 ::sleeping::😴
@@ -772,6 +773,7 @@ endchar = \
 
 ; Body parts
 ::lips::💋
+::bitelip::🫦
 ::mouth::👄
 ::eyes::👀
 ::brain::🧠
@@ -1843,15 +1845,13 @@ return
 
 	
 	out := ""
-	lowercase := 1
 	loop, parse, text
 	{
-		if lowercase
+		Random, lowercase, 0, 1
+		if lowercase < 0.5
 			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
 		else
 			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		if A_LoopField <> " "
-			lowercase := !lowercase
 	}
 	; Backspaces typed text, outputs new text
 	Send % "{Backspace " backspace "}{Raw}" out
