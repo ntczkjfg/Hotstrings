@@ -640,6 +640,8 @@ endchar = \
 ::sine::∿
 ::/0::�
 ::bullet::•
+::flat::♭
+::sharp::♯
 
 
 ; Emoji
@@ -752,6 +754,9 @@ endchar = \
 ::santaclaus::🎅
 ::mrsclaus::🤶
 ::fuck::🤬
+::weary::😩
+::pensive::😔
+::cowboy::🤠
 ::skull::💀
 ::dead::💀
 ::alien::👽
@@ -924,6 +929,7 @@ endchar = \
 ::wet::💦
 
 ; Objects
+::piano::🎹
 ::key::🔑
 ::lock::🔒
 ::bell::🔔
