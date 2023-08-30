@@ -635,6 +635,7 @@ endchar := "\"
 ::bullet::•
 ::flat::♭
 ::sharp::♯
+::#::♯
 
 
 ; Emoji
@@ -651,7 +652,7 @@ endchar := "\"
 ::XD::😆
 ::B)::😎
 :::|::😐
-:::/::😕
+:::/::🫤
 ::>_<::😖
 :::*::😙
 :::P::😛
@@ -665,6 +666,7 @@ endchar := "\"
 :::x::😬
 ::xp::😝
 :::O::😮
+::unsure::😕
 ::angel::😇
 ::devil::😈
 ::wink::😉
@@ -675,6 +677,7 @@ endchar := "\"
 ::smirk::😏
 ::stoic::😐
 ::kiss::😙
+::kiss2::😘
 ::tongue::😛
 ::mad::😤
 ::angry::😠
@@ -725,6 +728,7 @@ endchar := "\"
 ::mindblown::🤯
 ::yawn::🥱
 ::party::🥳
+::party2::🎈 🥳 🎂 ✨ 🎉 🎊 🎁
 ::please::🥺
 ::beg::🥺
 ::plead::🥺
@@ -732,7 +736,6 @@ endchar := "\"
 ::happytears::🥹
 ::melting::🫠
 ::salute::🫡
-::monocle::🧐
 ::yum::🤤
 ::tasty::😋
 ::hot::🥵
@@ -750,6 +753,7 @@ endchar := "\"
 ::weary::😩
 ::pensive::😔
 ::cowboy::🤠
+::proud::️☺
 ::skull::💀
 ::dead::💀
 ::alien::👽
@@ -799,6 +803,7 @@ endchar := "\"
 ::thumbsdown::👎
 ::rock::👊
 ::paper::✋
+::scissors::✌️
 ::spock::🖖
 ::clap::👏
 ::fuckyou::🖕
@@ -977,7 +982,8 @@ endchar := "\"
 ::club::♣️
 ::diamondsuit::♦️
 ::recycle::♻️
-::check::✔️
+::check::✅
+::check2::✔️
 ::checkmark::✔️
 ::cross::✝️
 ::christian::✝️
@@ -987,7 +993,7 @@ endchar := "\"
 ;::x::❌
 ::zzz::💤
 ::shootingstar::💫
-::dizzy::💫
+::dizzy2::💫
 ::no::🚫
 ::cancel::🚫
 ::prohibited::🚫
@@ -1019,9 +1025,9 @@ endchar := "\"
 ::sparkles::✨
 ::shiny::✨
 ::music::🎵
-::note::🎵
 ::plainnote::♪
 ::textnote::♪
+::note::🎵
 ::plainstar::★
 ::textstar::★
 ::hollowstar::☆
