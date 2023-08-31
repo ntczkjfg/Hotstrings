@@ -472,6 +472,7 @@ endchar := "\"
 ::degrees::°
 :: degree::°
 ::degree::°
+::deg::°
 :: degreesC::℃
 ::degreesC::℃
 :: degreeC::℃
