@@ -5,6 +5,7 @@ endchar := "\"
 ; WIN+Z, suspend all hotstrings
 #SuspendExempt
 #z::Suspend -1
+#SuspendExempt False
 
 ; Removes the endchar you typed to activate the Hotstring
 #Hotstring o
