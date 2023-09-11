@@ -1,18 +1,14 @@
-﻿; Type a backslash to activate any given Hotstring
+﻿; Type the endchar to activate any given Hotstring
 #Hotstring EndChars \
-endchar = \
+endchar := "\"
 
+; WIN+Z, suspend all hotstrings
+#SuspendExempt
+#z::Suspend -1
+#SuspendExempt False
 
-
-; WIN+Z, pause hotstrings.ahk
-#z::Suspend, Toggle
-
-
-
-; Removes the \ you typed to activate the Hotstring
+; Removes the endchar you typed to activate the Hotstring
 #Hotstring o
-
-
 
 ; Hotstring works even if immediately preceded by an alphanumeric character
 #Hotstring ?
@@ -21,8 +17,6 @@ endchar = \
 
 ; Makes Hotstrings case-sensitive
 #Hotstring c
-
-
 
 ; Lowercase Greek
 ::alpha::α
@@ -478,14 +472,13 @@ endchar = \
 ::degrees::°
 :: degree::°
 ::degree::°
-:: degreesC::℃
+::deg::°
 ::degreesC::℃
-:: degreeC::℃
 ::degreeC::℃
-:: degreesF::℉
+::degC::℃
 ::degreesF::℉
-:: degreeF::℉
 ::degreeF::℉
+::degF::℉
 ::ohm::Ω
 
 
@@ -642,6 +635,9 @@ endchar = \
 ::bullet::•
 ::flat::♭
 ::sharp::♯
+::#::♯
+::natural::♮
+::nat::♮
 
 
 ; Emoji
@@ -658,7 +654,7 @@ endchar = \
 ::XD::😆
 ::B)::😎
 :::|::😐
-:::/::😕
+:::/::🫤
 ::>_<::😖
 :::*::😙
 :::P::😛
@@ -672,6 +668,7 @@ endchar = \
 :::x::😬
 ::xp::😝
 :::O::😮
+::unsure::😕
 ::angel::😇
 ::devil::😈
 ::wink::😉
@@ -682,6 +679,7 @@ endchar = \
 ::smirk::😏
 ::stoic::😐
 ::kiss::😙
+::kiss2::😘
 ::tongue::😛
 ::mad::😤
 ::angry::😠
@@ -732,6 +730,7 @@ endchar = \
 ::mindblown::🤯
 ::yawn::🥱
 ::party::🥳
+::party2::🎈 🥳 🎂 ✨ 🎉 🎊 🎁
 ::please::🥺
 ::beg::🥺
 ::plead::🥺
@@ -739,7 +738,7 @@ endchar = \
 ::happytears::🥹
 ::melting::🫠
 ::salute::🫡
-::monocle::🧐
+::o7::🫡
 ::yum::🤤
 ::tasty::😋
 ::hot::🥵
@@ -757,6 +756,7 @@ endchar = \
 ::weary::😩
 ::pensive::😔
 ::cowboy::🤠
+::proud::️☺
 ::skull::💀
 ::dead::💀
 ::alien::👽
@@ -806,6 +806,7 @@ endchar = \
 ::thumbsdown::👎
 ::rock::👊
 ::paper::✋
+::scissors::✌️
 ::spock::🖖
 ::clap::👏
 ::fuckyou::🖕
@@ -984,7 +985,8 @@ endchar = \
 ::club::♣️
 ::diamondsuit::♦️
 ::recycle::♻️
-::check::✔️
+::check::✅
+::check2::✔️
 ::checkmark::✔️
 ::cross::✝️
 ::christian::✝️
@@ -994,7 +996,7 @@ endchar = \
 ;::x::❌
 ::zzz::💤
 ::shootingstar::💫
-::dizzy::💫
+::dizzy2::💫
 ::no::🚫
 ::cancel::🚫
 ::prohibited::🚫
@@ -1026,9 +1028,9 @@ endchar = \
 ::sparkles::✨
 ::shiny::✨
 ::music::🎵
-::note::🎵
 ::plainnote::♪
 ::textnote::♪
+::note::🎵
 ::plainstar::★
 ::textstar::★
 ::hollowstar::☆
@@ -1052,813 +1054,957 @@ endchar = \
 
 
 
-; Bulk superscripting
-::`^^::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
-	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
+; Gathers user input and does some processing regarding it.  
+; Did they type?  Paste?  Use from the clipboard?  
+; Send too much or take too long?  How much needs to be backspaced?  
+; Always backspace at least 1 for endchar.  Results are passed by reference so no returning needed.  
+GatherInput(&text, &backspaceCount) {
+	; Collects all input until endchar. Give up after L characters or T seconds.
 	Suspend
-	input, text, VL1000T90, %endchar%
+	text := InputHook("MVL1000T90", endchar)
+	text.Start()
+	text.Wait()
 	Suspend
 	
 	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
+	if text.EndReason == "Max" or text.EndReason == "Timeout" {
+		text := ""
+		backspaceCount := 0
 		return
+	}
+	text := text.Input
 	
-	map := { "+":"⁺", "-":"⁻", "=":"⁼", "(":"⁽", ")":"⁾"
-		, 0:"⁰", 1:"¹", 2:"²", 3:"³", 4:"⁴", 5:"⁵", 6:"⁶", 7:"⁷", 8:"⁸", 9:"⁹"
-		, a:"ᵃ", b:"ᵇ", c:"ᶜ", d:"ᵈ", e:"ᵉ", f:"ᶠ", g:"ᵍ", h:"ʰ", i:"ⁱ", j:"ʲ", k:"ᵏ", l:"ˡ", m:"ᵐ", n:"ⁿ", o:"ᵒ", p:"ᵖ", r:"ʳ", s:"ˢ", t:"ᵗ", u:"ᵘ", v:"ᵛ", w:"ʷ", x:"ˣ", y:"ʸ", z:"ᶻ" }
-	mapUpper := { A:"ᴬ", B:"ᴮ", D:"ᴰ", E:"ᴱ", G:"ᴳ", H:"ᴴ", I:"ᴵ", J:"ᴶ", K:"ᴷ", L:"ᴸ", M:"ᴹ", N:"ᴺ", O:"ᴼ", P:"ᴾ", R:"ᴿ", T:"ᵀ", U:"ᵁ", V:"ⱽ", W:"ᵂ" }
+	if StrLen(text) == 0 { ; If they didn't type anything, take the text from the clipboard
+		text := A_Clipboard
+		if StrLen(text) > 2000 { ; Give up if the clipboard is too large
+			text := ""
+			backspaceCount := 1
+			return
+		}
+		backspaceCount := 1
+	} else if Ord(text) == 22 { ; Detects if user pasted text, uses that if so
+		text := A_Clipboard
+		if StrLen(text) > 2000 { ; Give up if they pasted too much
+			return
+		}
+		backspaceCount := StrLen(text) + 1
+		StrReplace(text, "`r`n", "`r`n",, &count)
+		; Because CR+LF can be undone with one press of backspace
+		backspaceCount -= count
+	} else { ; They typed the input manually
+		backspaceCount := StrLen(text) + 1
+		StrReplace(text, "`r`n", "`r`n",, &count)
+		; Because CR+LF can be undone with one press of backspace
+		backspaceCount -= count
+	}
+	
+	text := StrReplace(text, "`r", "  ")
+	text := StrReplace(text, "`n", "  ")
+}
+
+; Bulk superscripting
+::`^^:: {
+	GatherInput(&text, &backspaceCount)
+	
+	charMap := Map()
+	charMap.Set( "+","⁺", "-","⁻", "=","⁼", "(","⁽", ")","⁾"
+			, "0","⁰", "1","¹", "2","²", "3","³", "4","⁴", "5","⁵", "6","⁶", "7","⁷", "8","⁸", "9","⁹"
+			, "a","ᵃ", "b","ᵇ", "c","ᶜ", "d","ᵈ", "e","ᵉ", "f","ᶠ", "g","ᵍ", "h","ʰ", "i","ⁱ", "j","ʲ", "k","ᵏ", "l","ˡ", "m","ᵐ"
+			, "n","ⁿ", "o","ᵒ", "p","ᵖ", "r","ʳ", "s","ˢ", "t","ᵗ", "u","ᵘ", "v","ᵛ", "w","ʷ", "x","ˣ", "y","ʸ", "z","ᶻ"
+			, "A","ᴬ", "B","ᴮ", "D","ᴰ", "E","ᴱ", "G","ᴳ", "H","ᴴ", "I","ᴵ", "J","ᴶ", "K","ᴷ", "L","ᴸ", "M","ᴹ"
+			, "N","ᴺ", "O","ᴼ", "P","ᴾ", "R","ᴿ", "T","ᵀ", "U","ᵁ", "V","ⱽ", "W","ᵂ" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk subscripting
-::__::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::__:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "+":"₊", "-":"₋", "=":"₌", "(":"₍", ")":"₍"
-		, 0:"₀", 1:"₁", 2:"₂", 3:"₃", 4:"₄", 5:"₅", 6:"₆", 7:"₇", 8:"₈", 9:"₉"
-		, a:"ₐ", e:"ₑ", h:"ₕ", i:"ᵢ", j:"ⱼ", k:"ₖ", l:"ₗ", m:"ₘ", n:"ₙ", o:"ₒ", p:"ₚ", r:"ᵣ", s:"ₛ", t:"ₜ", u:"ᵤ", v:"ᵥ", x:"ₓ" }
+	charMap := Map()
+	charMap.Set( "+","₊", "-","₋", "=","₌", "(","₍", ")","₍"
+			, "0","₀", "1","₁", "2","₂", "3","₃", "4","₄", "5","₅", "6","₆", "7","₇", "8","₈", "9","₉"
+			, "a","ₐ", "e","ₑ", "h","ₕ", "i","ᵢ", "j","ⱼ", "k","ₖ", "l","ₗ", "m","ₘ"
+			, "n","ₙ", "o","ₒ", "p","ₚ", "r","ᵣ", "s","ₛ", "t","ₜ", "u","ᵤ", "v","ᵥ", "x","ₓ" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk upside-down
-::flip::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
-	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
+::flip:: {
+	GatherInput(&text, &backspaceCount)
 	
 	; Reverse order of input
-	StringReplace, text, text, %a_space%, ⠀, All
 	tempText := ""
-	loop, parse, text
-		tempText = %A_LoopField%%tempText%
+	Loop Parse text {
+		tempText := A_LoopField . tempText
+	}
 	text := tempText
-	StringReplace, text, text, ⠀, %a_space%, All
 	
-	map := { "&":"⅋", ">":"<", "<":">", "}":"{", "{":"}", "]":"[", "[":"]", ")":"(", "(":")", "_":"‾", "!":"¡", "?":"¿", ".":"˙", """":",,", "'":",", ",":"'", "^":"v"
-			, 0:"0", 1:"Ɩ", 2:"ᄅ", 3:"Ɛ", 4:"ㄣ", 5:"ϛ", 6:"9", 7:"ㄥ", 8:"8", 9:"6"
-			, "a":"ɐ", "b":"q", "c":"ɔ", "d":"p", "e":"ǝ", "f":"ɟ", "g":"ƃ", "h":"ɥ", "i":"ᴉ", "j":"ɾ", "k":"ʞ", "l":"l", "m":"ɯ", "n":"u", "o":"o", "p":"d", "q":"b", "r":"ɹ", "s":"s", "t":"ʇ", "u":"n", "v":"ʌ", "w":"ʍ", "x":"x", "y":"ʎ", "z":"z" }
-	mapUpper := { "A":"∀", "B":"q", "C":"Ɔ", "D":"p", "E":"Ǝ", "F":"Ⅎ", "G":"פ", "H":"H", "I":"I", "J":"ſ", "K":"ʞ", "L":"˥", "M":"W", "N":"N", "O":"O", "P":"Ԁ", "Q":"Q", "R":"ɹ", "S":"S", "T":"┴", "U":"∩", "V":"Λ", "W":"M", "X":"X", "Y":"⅄", "Z":"Z" }
+	charMap := Map()
+	charMap.Set( "&","⅋", ">","<", "<",">", "}","{", "{","}", "]","[", "[","]", ")","(", "(",")", "_","‾", "!","¡", "?","¿", ".","˙", "`"",",,", "'",",", ",","'", "^","v"
+			, "0","0", "1","Ɩ", "2","ᄅ", "3","Ɛ", "4","ㄣ", "5","ϛ", "6","9", "7","ㄥ", "8","8", "9","6"
+			, "a","ɐ", "b","q", "c","ɔ", "d","p", "e","ǝ", "f","ɟ", "g","ƃ", "h","ɥ", "i","ᴉ", "j","ɾ", "k","ʞ", "l","l", "m","ɯ"
+			, "n","u", "o","o", "p","d", "q","b", "r","ɹ", "s","s", "t","ʇ", "u","n", "v","ʌ", "w","ʍ", "x","x", "y","ʎ", "z","z"
+			, "A","∀", "B","q", "C","Ɔ", "D","p", "E","Ǝ", "F","Ⅎ", "G","פ", "H","H", "I","I", "J","ſ", "K","ʞ", "L","˥", "M","W"
+			, "N","N", "O","O", "P","Ԁ", "Q","Q", "R","ɹ", "S","S", "T","┴", "U","∩", "V","Λ", "W","M", "X","X", "Y","⅄", "Z","Z" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk unbraille code
-::unbraille::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::unbraille:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, MVL1000T90, %endchar%
-	Suspend
+	charMap := Map()
+	charMap.Set( "⠂",",", "⠆",";", "⠒",":", "⠲",".", "⠖","!", "⠶","(", "⠶",")", "⠦","?", "⠦","`"", "⠦","<", "⠴",">", "⠌","/", "⠄","'", "⠤","-", "⠀"," "
+			, "⠁","a", "⠃","b", "⠉","c", "⠙","d", "⠑","e", "⠋","f", "⠛","g", "⠓","h", "⠊","i", "⠚","j", "⠅","k", "⠇","l", "⠍","m"
+			, "⠝","n", "⠕","o", "⠏","p", "⠟","q", "⠗","r", "⠎","s", "⠞","t", "⠥","u", "⠧","v", "⠺","w", "⠭","x", "⠽","y", "⠵","z" )
+	numMap := Map()
+	numMap.Set( "a","1", "b","2", "c","3", "d","4", "e","5", "f","6", "g","7", "h","8", "i","9", "j","0" )
 	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	; If they didn't type anything, take the text from the clipboard
-	if StrLen(text) = 0
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := 1
-	}
-	
-	; Detects if user pasted text, uses that if so
-	else if Asc(text) = 22
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := StrLen(text) + 1
-	}
-	else
-	{
-		backspace := StrLen(text) + 1
-	}
-	
-	map := { "⠠⠁":"A", "⠠⠃":"B", "⠠⠉":"C", "⠠⠙":"D", "⠠⠑":"E", "⠠⠋":"F", "⠠⠛":"G", "⠠⠓":"H", "⠠⠊":"I", "⠠⠚":"J", "⠠⠅":"K", "⠠⠇":"L", "⠠⠍":"M", "⠠⠝":"N", "⠠⠕":"O", "⠠⠏":"P", "⠠⠟":"Q", "⠠⠗":"R", "⠠⠎":"S", "⠠⠞":"T", "⠠⠥":"U", "⠠⠧":"V", "⠠⠺":"W", "⠠⠭":"X", "⠠⠽":"Y", "⠠⠵":"Z"
-			, "⠂":",", "⠆":";", "⠒":":", "⠲":".", "⠖":"!", "⠶":"(", "⠶":")", "⠦":"?", "⠦":"""", "⠦":"<", "⠴":">", "⠌":"/", "⠄":"'", "⠤":"-", "⠀":" "
-			, "⠁":"a", "⠃":"b", "⠉":"c", "⠙":"d", "⠑":"e", "⠋":"f", "⠛":"g", "⠓":"h", "⠊":"i", "⠚":"j", "⠅":"k", "⠇":"l", "⠍":"m", "⠝":"n", "⠕":"o", "⠏":"p", "⠟":"q", "⠗":"r", "⠎":"s", "⠞":"t", "⠥":"u", "⠧":"v", "⠺":"w", "⠭":"x", "⠽":"y", "⠵":"z"
-			, "⠼⠁":"1", "⠼⠃":"2", "⠼⠉":"3", "⠼⠙":"4", "⠼⠑":"5", "⠼⠋":"6", "⠼⠛":"7", "⠼⠓":"8", "⠼⠊":"9", "⠼⠚":"0" }
-	
+	; nextNumber and nextUpper track if the next character is a number or uppercase letter, each of which are expressed with a special prefix character
+	nextNumber := False
+	nextUpper := False
 	out := ""
-	loop, parse, text
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		if A_LoopField == "⠠" {
+			nextUpper := True
+			continue
+		}
+		if A_LoopField == "⠼" {
+			nextNumber := True
+			continue
+		}
+		nextChar := charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+		if nextUpper {
+			nextChar := StrUpper(nextChar)
+			nextUpper := False
+		}
+		if nextNumber {
+			nextChar := numMap.Has(nextChar) ? numMap[nextChar] : nextChar
+			nextNumber := False
+		}
+		out .= nextChar
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " backspace "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk braille
-::braille::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::braille:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { ",":"⠂", ";":"⠆", ":":"⠒", ".":"⠲", "!":"⠖", "(":"⠶", ")":"⠶", "?":"⠦", """":"⠦", "<":"⠦", ">":"⠴", "/":"⠌", "'":"⠄", "-":"⠤", " ":"⠀"
-		, 1:"⠼⠁", 2:"⠼⠃", 3:"⠼⠉", 4:"⠼⠙", 5:"⠼⠑", 6:"⠼⠋", 7:"⠼⠛", 8:"⠼⠓", 9:"⠼⠊", 0:"⠼⠚"
-		, a:"⠁", b:"⠃", c:"⠉", d:"⠙", e:"⠑", f:"⠋", g:"⠛", h:"⠓", i:"⠊", j:"⠚", k:"⠅", l:"⠇", m:"⠍", n:"⠝", o:"⠕", p:"⠏", q:"⠟", r:"⠗", s:"⠎", t:"⠞", u:"⠥", v:"⠧", w:"⠺", x:"⠭", y:"⠽", z:"⠵" }
-	mapUpper := { A:"⠠⠁", B:"⠠⠃", C:"⠠⠉", D:"⠠⠙", E:"⠠⠑", F:"⠠⠋", G:"⠠⠛", H:"⠠⠓", I:"⠠⠊", J:"⠠⠚", K:"⠠⠅", L:"⠠⠇", M:"⠠⠍", N:"⠠⠝", O:"⠠⠕", P:"⠠⠏", Q:"⠠⠟", R:"⠠⠗", S:"⠠⠎", T:"⠠⠞", U:"⠠⠥", V:"⠠⠧", W:"⠠⠺", X:"⠠⠭", Y:"⠠⠽", Z:"⠠⠵" }
+	charMap := Map()
+	charMap.CaseSense := "Off"
+	charMap.Set( ",","⠂", ";","⠆", ":","⠒", ".","⠲", "!","⠖", "(","⠶", ")","⠶", "?","⠦", "`"","⠦", "<","⠦", ">","⠴", "/","⠌", "'","⠄", "-","⠤", " ","⠀"
+			, "1","⠼⠁", "2","⠼⠃", "3","⠼⠉", "4","⠼⠙", "5","⠼⠑", "6","⠼⠋", "7","⠼⠛", "8","⠼⠓", "9","⠼⠊", "0","⠼⠚"
+			, "a","⠁", "b","⠃", "c","⠉", "d","⠙", "e","⠑", "f","⠋", "g","⠛", "h","⠓", "i","⠊", "j","⠚", "k","⠅", "l","⠇", "m","⠍"
+			, "n","⠝", "o","⠕", "p","⠏", "q","⠟", "r","⠗", "s","⠎", "t","⠞", "u","⠥", "v","⠧", "w","⠺", "x","⠭", "y","⠽", "z","⠵" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		if IsUpper(A_LoopField) {
+			out .= "⠠"
+		}
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk unmorse code
-::unmorse::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::unmorse:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, MVL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	; If they didn't type anything, take the text from the clipboard
-	if StrLen(text) = 0
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
+	text := StrReplace(text, " ", " ")
+	Loop {
+		text := StrReplace(text, "   ", "  ",, &count)
+		if count == 0 {
+			break
 		}
-		backspace := 1
 	}
 	
-	; Detects if user pasted text, uses that if so
-	else if Asc(text) = 22
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := StrLen(text) + 1
-	}
-	else
-	{
-		backspace := StrLen(text) + 1
-	}
+	charMap := Map()
+	charMap.Set( ""," "
+			, "•−•−•−",".", "−−••−−",",", "••−−••","?", "•−−−−•","'", "−••−•","/", "−•−−•","(", "−•−−•−",")", "•−•••","&", "−−−•••",":", "−•••−","=", "•−•−•","+", "−••••−","-", "•−••−•","`"", "•−−•−•","@", "•••−••−","$", "••−−•−","_", "−•−•−•",";", "−•−•−−","!"
+			, "•−","A", "−•••","B", "−•−•","C", "−••","D", "•","E", "••−•","F", "−−•","G", "••••","H", "••","I", "•−−−","J", "−•−","K", "•−••","L", "−−","M"
+			, "−•","N", "−−−","O", "•−−•","P", "−−•−","Q", "•−•","R", "•••","S", "−","T", "••−","U", "•••−","V", "•−−","W", "−••−","X", "−•−−","Y", "−−••","Z"
+			, "•−−−−","1", "••−−−","2", "•••−−","3", "••••−","4", "•••••","5", "−••••","6", "−−•••","7", "−−−••","8", "−−−−•","9", "−−−−−","0"
+			, ".-.-.-",".", "--..--",",", "..--..","?", ".----.","'", "-..-.","/", "-.--.","(", "-.--.-",")", ".-...","&", "---...",":", "-...-","=", ".-.-.","+", "-....-","-", ".-..-.","`"", ".--.-.","@", "...-..-","$", "..--.-","_", "-.-.-.",";", "-.-.--","!"
+			, ".-","A", "-...","B", "-.-.","C", "-..","D", ".","E", "..-.","F", "--.","G", "....","H", "..","I", ".---","J", "-.-","K", ".-..","L", "--","M"
+			, "-.","N", "---","O", ".--.","P", "--.-","Q", ".-.","R", "...","S", "-","T", "..-","U", "...-","V", ".--","W", "-..-","X", "-.--","Y", "--..","Z"
+			, ".----","1", "..---","2", "...--","3", "....-","4", ".....","5", "-....","6", "--...","7", "---..","8", "----.","9", "-----","0" )
 	
-	map := { "":" "
-			, "•−•−•−":".", "−−••−−":",", "••−−••":"?", "•−−−−•":"'", "−••−•":"/", "−•−−•":"(", "−•−−•−":")", "•−•••":"&", "−−−•••":":", "−•••−":"=", "•−•−•":"+", "−••••−":"-", "•−••−•":"""", "•−−•−•":"@", "•••−••−":"$", "••−−•−":"_", "−•−•−•":";", "−•−•−−":"!"
-			, "•−":"A", "−•••":"B", "−•−•":"C", "−••":"D", "•":"E", "••−•":"F", "−−•":"G", "••••":"H", "••":"I", "•−−−":"J", "−•−":"K", "•−••":"L", "−−":"M", "−•":"N", "−−−":"O", "•−−•":"P", "−−•−":"Q", "•−•":"R", "•••":"S", "−":"T", "••−":"U", "•••−":"V", "•−−":"W", "−••−":"X", "−•−−":"Y", "−−••":"Z"
-			, "•−−−−":"1", "••−−−":"2", "•••−−":"3", "••••−":"4", "•••••":"5", "−••••":"6", "−−•••":"7", "−−−••":"8", "−−−−•":"9", "−−−−−":"0"
-			, ".-.-.-":".", "--..--":",", "..--..":"?", ".----.":"'", "-..-.":"/", "-.--.":"(", "-.--.-":")", ".-...":"&", "---...":":", "-...-":"=", ".-.-.":"+", "-....-":"-", ".-..-.":"""", ".--.-.":"@", "...-..-":"$", "..--.-":"_", "-.-.-.":";", "-.-.--":"!"
-			, ".-":"A", "-...":"B", "-.-.":"C", "-..":"D", ".":"E", "..-.":"F", "--.":"G", "....":"H", "..":"I", ".---":"J", "-.-":"K", ".-..":"L", "--":"M", "-.":"N", "---":"O", ".--.":"P", "--.-":"Q", ".-.":"R", "...":"S", "-":"T", "..-":"U", "...-":"V", ".--":"W", "-..-":"X", "-.--":"Y", "--..":"Z"
-			, ".----":"1", "..---":"2", "...--":"3", "....-":"4", ".....":"5", "-....":"6", "--...":"7", "---..":"8", "----.":"9", "-----":"0" }
-	
-	newText := text
-	StringReplace, newText, newText, `r`n, %a_space%, All
-	StringReplace, newText, newText,  , %a_space%, All
-	StringReplace, newText, newText, %a_space%%a_space%%a_space%, %a_space%%a_space%, All
 	out := ""
-	loop, parse, newText, %a_space%
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text, A_Space {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " backspace "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk morse code
-::morse::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::morse:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { ".":"•−•−•− ", ",":"−−••−− ", "?":"••−−•• ", "'":"•−−−−• ", "/":"−••−• ", "(":"−•−−• ", ")":"−•−−•− ", "&":"•−••• ", ":":"−−−••• ", "=":"−•••− ", "+":"•−•−• ", "-":"−••••− ", """":"•−••−• ", "@":"•−−•−• ", "$":"•••−••− ", "_":"••−−•− ", ";":"−•−•−• ", "!":"−•−•−− ", " ":"  "
-		, a:"•− ", b:"−••• ", c:"−•−• ", d:"−•• ", e:"• ", f:"••−• ", g:"−−• ", h:"•••• ", i:"•• ", j:"•−−− ", k:"−•− ", l:"•−•• ", m:"−− ", n:"−• ", o:"−−− ", p:"•−−• ", q:"−−•− ", r:"•−• ", s:"••• ", t:"− ", u:"••− ", v:"•••− ", w:"•−− ", x:"−••− ", y:"−•−− ", z:"−−•• "
-		, 1:"•−−−− ", 2:"••−−− ", 3:"•••−− ", 4:"••••− ", 5:"••••• ", 6:"−•••• ", 7:"−−••• ", 8:"−−−•• ", 9:"−−−−• ", 0:"−−−−− " }
+	charMap := Map()
+	charMap.CaseSense := "Off"
+	charMap.Set( ".","•−•−•− ", ",","−−••−− ", "?","••−−•• ", "'","•−−−−• ", "/","−••−• ", "(","−•−−• ", ")","−•−−•− ", "&","•−••• ", ":","−−−••• ", "=","−•••− ", "+","•−•−• ", "-","−••••− ", "`"","•−••−• ", "@","•−−•−• ", "$","•••−••− ", "_","••−−•− ", ";","−•−•−• ", "!","−•−•−− ", " ","  "
+			, "a","•− ", "b","−••• ", "c","−•−• ", "d","−•• ", "e","• ", "f","••−• ", "g","−−• ", "h","•••• ", "i","•• ", "j","•−−− ", "k","−•− ", "l","•−•• ", "m","−− "
+			, "n","−• ", "o","−−− ", "p","•−−• ", "q","−−•− ", "r","•−• ", "s","••• ", "t","− ", "u","••− ", "v","•••− ", "w","•−− ", "x","−••− ", "y","−•−− ", "z","−−•• "
+			, "1","•−−−− ", "2","••−−− ", "3","•••−− ", "4","••••− ", "5","••••• ", "6","−•••• ", "7","−−••• ", "8","−−−•• ", "9","−−−−• ", "0","−−−−− " )
 	
 	out := ""
-	loop, parse, text
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk morse code, periods and hyphens
-::morse2::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::morse2:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { ".":".-.-.- ", ",":"--..-- ", "?":"..--.. ", "'":".----. ", "/":"-..-. ", "(":"-.--. ", ")":"-.--.- ", "&":".-... ", ":":"---... ", "=":"-...- ", "+":".-.-. ", "-":"-....- ", """":".-..-. ", "@":".--.-. ", "$":"...-..- ", "_":"..--.- ", ";":"-.-.-. ", "!":"-.-.-- ", " ":"  "
-		, a:".- ", b:"-... ", c:"-.-. ", d:"-.. ", e:". ", f:"..-. ", g:"--. ", h:".... ", i:".. ", j:".--- ", k:"-.- ", l:".-.. ", m:"-- ", n:"-. ", o:"--- ", p:".--. ", q:"--.- ", r:".-. ", s:"... ", t:"- ", u:"..- ", v:"...- ", w:".-- ", x:"-..- ", y:"-.-- ", z:"--.. "
-		, 1:".---- ", 2:"..--- ", 3:"...-- ", 4:"....- ", 5:"..... ", 6:"-.... ", 7:"--... ", 8:"---.. ", 9:"----. ", 0: o "----- " }
+	charMap := Map()
+	charMap.CaseSense := "Off"
+	charMap.Set( ".",".-.-.- ", ",","--..-- ", "?","..--.. ", "'",".----. ", "/","-..-. ", "(","-.--. ", ")","-.--.- ", "&",".-... ", ":","---... ", "=","-...- ", "+",".-.-. ", "-","-....- ", "`"",".-..-. ", "@",".--.-. ", "$","...-..- ", "_","..--.- ", ";","-.-.-. ", "!","-.-.-- ", " ","  "
+		, "a",".- ", "b","-... ", "c","-.-. ", "d","-.. ", "e",". ", "f","..-. ", "g","--. ", "h",".... ", "i",".. ", "j",".--- ", "k","-.- ", "l",".-.. ", "m","-- "
+		, "n","-. ", "o","--- ", "p",".--. ", "q","--.- ", "r",".-. ", "s","... ", "t","- ", "u","..- ", "v","...- ", "w",".-- ", "x","-..- ", "y","-.-- ", "z","--.. "
+		, "1",".---- ", "2","..--- ", "3","...-- ", "4","....- ", "5","..... ", "6","-.... ", "7","--... ", "8","---.. ", "9","----. ", "0","----- " )
 	
 	out := ""
-	loop, parse, text
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk unrune code (Elder Futhark)
-::unrune::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::unrune:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, MVL1000T90, %endchar%
-	Suspend
+	text := StrReplace(text, "ᚦ", "th")
+	text := StrReplace(text, "ᛜ", "ng")
 	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
+	charMap := Map()
+	charMap.Set( "ᚠ","f", "ᚢ","u", "ᛞ","d", "ᛉ","z", "ᛒ","b", "ᛃ","j", "ᚨ","a", "ᚹ","w", "ᚷ","g", "æ","ᛇ", "ᚱ","r", "ᚲ","k", "ᚺ","h", "ᚾ","n", "ᛁ","i", "ᛖ","e", "ᛊ","s", "ᛏ","t", "ᛈ","p", "ᛗ","m", "ᛚ","l", "ᛟ","o" )
 	
-	; If they didn't type anything, take the text from the clipboard
-	if StrLen(text) = 0
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := 1
-	}
-	
-	; Detects if user pasted text, uses that if so
-	else if Asc(text) = 22
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := StrLen(text) + 1
-	}
-	else
-	{
-		backspace := StrLen(text) + 1
-	}
-	
-	map := { "ᚠ":"f", "ᚢ":"u", "ᛞ":"d", "ᛉ":"z", "ᛒ":"b", "ᛃ":"j", "ᚨ":"a", "ᚹ":"w", "ᚷ":"g", "æ":"ᛇ", "ᚱ":"r", "ᚲ":"k", "ᚺ":"h", "ᚾ":"n", "ᛁ":"i", "ᛖ":"e", "ᛊ":"s", "ᛏ":"t", "ᛈ":"p", "ᛗ":"m", "ᛚ":"l", "ᛟ":"o"}
-	
-	newText := text
-	StringReplace, newText, newText, ᚦ, th, All
-	StringReplace, newText, newText, ᛜ, ng, All
 	out := ""
-	loop, parse, newText
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " backspace "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk Elder Futhark
-::rune::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::rune:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
+	text := StrReplace(text, "th", "ᚦ", 0)
+	text := StrReplace(text, "ng", "ᛜ", 0)
+	text := StrReplace(text, "ae", "ᛇ", 0)
 	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "f":"ᚠ", "u":"ᚢ", "a":"ᚨ", "r":"ᚱ", "k":"ᚲ", "g":"ᚷ", "w":"ᚹ", "h":"ᚺ", "n":"ᚾ", "i":"ᛁ", "j":"ᛃ", "æ":"ᛇ", "p":"ᛈ", "z":"ᛉ", "s":"ᛊ", "t":"ᛏ", "b":"ᛒ", "e":"ᛖ", "m":"ᛗ", "l":"ᛚ", "o":"ᛟ", "d":"ᛞ", "v":"ᚠ" }
+	charMap := Map()
+	charMap.CaseSense := "Off"
+	charMap.Set( "f","ᚠ", "u","ᚢ", "a","ᚨ", "r","ᚱ", "k","ᚲ", "g","ᚷ", "w","ᚹ", "h","ᚺ", "n","ᚾ", "i","ᛁ", "j","ᛃ", "æ","ᛇ", "p","ᛈ", "z","ᛉ", "s","ᛊ", "t","ᛏ", "b","ᛒ", "e","ᛖ", "m","ᛗ", "l","ᛚ", "o","ᛟ", "d","ᛞ", "v","ᚠ" )
 	
 	out := ""
-	newText := text
-	StringReplace, newText, newText, th, ᚦ, All
-	StringReplace, newText, newText, ng, ᛜ, All 
-	StringReplace, newText, newText, ae, ᛇ, All 
-	loop, parse, newText
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send %  "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk unrune code (Younger Futhark)
-::unrune2::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::unrune2:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, MVL1000T90, %endchar%
-	Suspend
+	text := StrReplace(text, "ᚦ", "th")
+	text := StrReplace(text, "ᛦ", "r")
 	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
+	charMap := Map()
+	charMap.Set( "ᚠ","f", "ᚢ","o", "ᚬ","æ", "ᚱ","r", "ᚴ","k", "ᚼ","h", "ᚾ","n", "ᛁ","i", "ᛅ","e", "ᛋ","s", "ᛏ","t", "ᛒ","p", "ᛘ","m", "ᛚ","l" )
 	
-	; If they didn't type anything, take the text from the clipboard
-	if StrLen(text) = 0
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := 1
-	}
-	
-	; Detects if user pasted text, uses that if so
-	else if Asc(text) = 22
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := StrLen(text) + 1
-	}
-	else
-	{
-		backspace := StrLen(text) + 1
-	}
-	
-	newText := text
-	StringReplace, newText, newText, ᚦ, th, All
-	StringReplace, newText, newText, ᛦ, r, All
 	out := ""
-	map := { "ᚠ":"f", "ᚢ":"o", "ᚬ":"æ", "ᚱ":"r", "ᚴ":"k", "ᚼ":"h", "ᚾ":"n", "ᛁ":"i", "ᛅ":"e", "ᛋ":"s", "ᛏ":"t", "ᛒ":"p", "ᛘ":"m", "ᛚ":"l"}
-	loop, parse, newText
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " backspace "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk Younger Futhark
-::rune2::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::rune2:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
+	text := StrReplace(text, "th", "ᚦ", 0)
+	text := StrReplace(text, "rrr", "ᛦ", 0)
 	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "f":"ᚠ", "u":"ᚢ", "v":"ᚢ", "w":"ᚢ", "y":"ᚢ", "o":"ᚢ", "ø":"ᚢ", "æ":"ᚬ", "r":"ᚱ", "k":"ᚴ", "g":"ᚴ", "h":"ᚼ", "n":"ᚾ", "i":"ᛁ", "e":"ᛅ", "a":"ᛅ", "s":"ᛋ", "t":"ᛏ", "d":"ᛏ", "b":"ᛒ", "p":"ᛒ", "m":"ᛘ", "l":"ᛚ" }
+	charMap := Map()
+	charMap.CaseSense := "Off"
+	charMap.Set( "f","ᚠ", "u","ᚢ", "v","ᚢ", "w","ᚢ", "y","ᚢ", "o","ᚢ", "ø","ᚢ", "æ","ᚬ", "r","ᚱ", "k","ᚴ", "g","ᚴ", "h","ᚼ", "n","ᚾ", "i","ᛁ", "e","ᛅ", "a","ᛅ", "s","ᛋ", "t","ᛏ", "d","ᛏ", "b","ᛒ", "p","ᛒ", "m","ᛘ", "l","ᛚ" )
 	
 	out := ""
-	newText := text
-	StringReplace, newText, newText, th, ᚦ, All
-	StringReplace, newText, newText, rrr, ᛦ, All
-	loop, parse, newText
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send %  "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk blackboard bold
-::bb::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::bb:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
+	text := StrReplace(text, "Sigma", "⅀")
+	text := StrReplace(text, "Gamma", "ℾ")
+	text := StrReplace(text, "gamma", "ℽ")
+	text := StrReplace(text, "Pi", "ℿ")
+	text := StrReplace(text, "pi", "ℼ")
 	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { 0:"𝟘", 1:"𝟙", 2:"𝟚", 3:"𝟛", 4:"𝟜", 5:"𝟝", 6:"𝟞", 7:"𝟟", 8:"𝟠", 9:"𝟡"
-			, a:"𝕒", b:"𝕓", c:"𝕔", d:"𝕕", e:"𝕖", f:"𝕗", g:"𝕘", h:"𝕙", i:"𝕚", j:"𝕛", k:"𝕜", l:"𝕝", m:"𝕞", n:"𝕟", o:"𝕠", p:"𝕡", q:"𝕢", r:"𝕣", s:"𝕤", t:"𝕥", u:"𝕦", v:"𝕧", w:"𝕨", x:"𝕩", y:"𝕪", z:"𝕫" }
-	mapUpper := { A:"𝔸", B:"𝔹", C:"ℂ", D:"𝔻", E:"𝔼", F:"𝔽", G:"𝔾", H:"ℍ", I:"𝕀", J:"𝕁", K:"𝕂", L:"𝕃", M:"𝕄", N:"ℕ", O:"𝕆", P:"ℙ", Q:"ℚ", R:"ℝ", S:"𝕊", T:"𝕋", U:"𝕌", V:"𝕍", W:"𝕎", X:"𝕏", Y:"𝕐", Z:"ℤ" }
+	charMap := Map()
+	charMap.Set( "0","𝟘", "1","𝟙", "2","𝟚", "3","𝟛", "4","𝟜", "5","𝟝", "6","𝟞", "7","𝟟", "8","𝟠", "9","𝟡"
+			, "a","𝕒", "b","𝕓", "c","𝕔", "d","𝕕", "e","𝕖", "f","𝕗", "g","𝕘", "h","𝕙", "i","𝕚", "j","𝕛", "k","𝕜", "l","𝕝", "m","𝕞"
+			, "n","𝕟", "o","𝕠", "p","𝕡", "q","𝕢", "r","𝕣", "s","𝕤", "t","𝕥", "u","𝕦", "v","𝕧", "w","𝕨", "x","𝕩", "y","𝕪", "z","𝕫"
+			, "A","𝔸", "B","𝔹", "C","ℂ", "D","𝔻", "E","𝔼", "F","𝔽", "G","𝔾", "H","ℍ", "I","𝕀", "J","𝕁", "K","𝕂", "L","𝕃", "M","𝕄"
+			, "N","ℕ", "O","𝕆", "P","ℙ", "Q","ℚ", "R","ℝ", "S","𝕊", "T","𝕋", "U","𝕌", "V","𝕍", "W","𝕎", "X","𝕏", "Y","𝕐", "Z","ℤ" )
 	
 	out := ""
-	newText := text
-	StringCaseSense, on
-	StringReplace, newText, newText, Sigma, ⅀, All
-	StringReplace, newText, newText, Gamma, ℾ, All
-	StringReplace, newText, newText, gamma, ℽ, All
-	StringReplace, newText, newText, Pi, ℿ, All
-	StringReplace, newText, newText, pi, ℼ, All
-	StringCaseSense, off
-	loop, parse, newText
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk small caps
-::smallcaps::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::smallcaps:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "A":"ᴀ", "B":"ʙ", "C":"ᴄ", "D":"ᴅ", "E":"ᴇ", "F":"ғ", "G":"ɢ", "H":"ʜ", "I":"ɪ", "J":"ᴊ", "K":"ᴋ", "L":"ʟ", "M":"ᴍ", "N":"ɴ", "O":"ᴏ", "P":"ᴘ", "Q":"ǫ", "R":"ʀ", "S":"s", "T":"ᴛ", "U":"ᴜ", "V":"ᴠ", "W":"ᴡ", "X":"x", "Y":"ʏ", "Z":"ᴢ" }
+	charMap := Map()
+	charMap.CaseSense := "Off"
+	charMap.Set( "A","ᴀ", "B","ʙ", "C","ᴄ", "D","ᴅ", "E","ᴇ", "F","ғ", "G","ɢ", "H","ʜ", "I","ɪ", "J","ᴊ", "K","ᴋ", "L","ʟ", "M","ᴍ"
+			, "N","ɴ", "O","ᴏ", "P","ᴘ", "Q","ǫ", "R","ʀ", "S","s", "T","ᴛ", "U","ᴜ", "V","ᴠ", "W","ᴡ", "X","x", "Y","ʏ", "Z","ᴢ" )
 	
 	out := ""
-	loop, parse, text
-		out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk bold cursive
-::boldcursive::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::boldcursive:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "a":"𝓪", "b":"𝓫", "c":"𝓬", "d":"𝓭", "e":"𝓮", "f":"𝓯", "g":"𝓰", "h":"𝓱", "i":"𝓲", "j":"𝓳", "k":"𝓴", "l":"𝓵", "m":"𝓶", "n":"𝓷", "o":"𝓸", "p":"𝓹", "q":"𝓺", "r":"𝓻", "s":"𝓼", "t":"𝓽", "u":"𝓾", "v":"𝓿", "w":"𝔀", "x":"𝔁", "y":"𝔂", "z":"𝔃" }
-	mapUpper := { "A":"𝓐", "B":"𝓑", "C":"𝓒", "D":"𝓓", "E":"𝓔", "F":"𝓕", "G":"𝓖", "H":"𝓗", "I":"𝓘", "J":"𝓙", "K":"𝓚", "L":"𝓛", "M":"𝓜", "N":"𝓝", "O":"𝓞", "P":"𝓟", "Q":"𝓠", "R":"𝓡", "S":"𝓢", "T":"𝓣", "U":"𝓤", "V":"𝓥", "W":"𝓦", "X":"𝓧", "Y":"𝓨", "Z":"𝓩" }
+	charMap := Map()
+	charMap.Set( "a","𝓪", "b","𝓫", "c","𝓬", "d","𝓭", "e","𝓮", "f","𝓯", "g","𝓰", "h","𝓱", "i","𝓲", "j","𝓳", "k","𝓴", "l","𝓵", "m","𝓶"
+			, "n","𝓷", "o","𝓸", "p","𝓹", "q","𝓺", "r","𝓻", "s","𝓼", "t","𝓽", "u","𝓾", "v","𝓿", "w","𝔀", "x","𝔁", "y","𝔂", "z","𝔃"
+			, "A","𝓐", "B","𝓑", "C","𝓒", "D","𝓓", "E","𝓔", "F","𝓕", "G","𝓖", "H","𝓗", "I","𝓘", "J","𝓙", "K","𝓚", "L","𝓛", "M","𝓜"
+			, "N","𝓝", "O","𝓞", "P","𝓟", "Q","𝓠", "R","𝓡", "S","𝓢", "T","𝓣", "U","𝓤", "V","𝓥", "W","𝓦", "X","𝓧", "Y","𝓨", "Z","𝓩" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk cursive
-::cursive::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::cursive:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "a":"𝒶", "b":"𝒷", "c":"𝒸", "d":"𝒹", "e":"𝔢", "f":"𝒻", "g":"ℊ", "h":"𝒽", "i":"𝒾", "j":"𝒿", "k":"𝓀", "l":"𝓁", "m":"𝓂", "n":"𝓃", "o":"ℴ", "p":"𝓅", "q":"𝓆", "r":"𝓇", "s":"𝓈", "t":"𝓉", "u":"𝓊", "v":"𝓋", "w":"𝓌", "x":"𝓍", "y":"𝓎", "z":"𝓏" }
-	mapUpper := { "A":"𝒜", "B":"ℬ", "C":"𝒞", "D":"𝒟", "E":"ℰ", "F":"ℱ", "G":"𝒢", "H":"ℋ", "I":"ℐ", "J":"𝒥", "K":"𝒦", "L":"ℒ", "M":"ℳ", "N":"𝒩", "O":"𝒪", "P":"𝒫", "Q":"𝒬", "R":"ℛ", "S":"𝒮", "T":"𝒯", "U":"𝒰", "V":"𝒱", "W":"𝒲", "X":"𝒳", "Y":"𝒴", "Z":"𝒵" }
+	charMap := Map()
+	charMap.Set( "a","𝒶", "b","𝒷", "c","𝒸", "d","𝒹", "e","𝔢", "f","𝒻", "g","ℊ", "h","𝒽", "i","𝒾", "j","𝒿", "k","𝓀", "l","𝓁", "m","𝓂"
+			, "n","𝓃", "o","ℴ", "p","𝓅", "q","𝓆", "r","𝓇", "s","𝓈", "t","𝓉", "u","𝓊", "v","𝓋", "w","𝓌", "x","𝓍", "y","𝓎", "z","𝓏"
+			, "A","𝒜", "B","ℬ", "C","𝒞", "D","𝒟", "E","ℰ", "F","ℱ", "G","𝒢", "H","ℋ", "I","ℐ", "J","𝒥", "K","𝒦", "L","ℒ", "M","ℳ"
+			, "N","𝒩", "O","𝒪", "P","𝒫", "Q","𝒬", "R","ℛ", "S","𝒮", "T","𝒯", "U","𝒰", "V","𝒱", "W","𝒲", "X","𝒳", "Y","𝒴", "Z","𝒵" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk bolditalic
-::bolditalic::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::bolditalic:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "a":"𝙖", "b":"𝙗", "c":"𝙘", "d":"𝙙", "e":"𝙚", "f":"𝙛", "g":"𝙜", "h":"𝙝", "i":"𝙞", "j":"𝙟", "k":"𝙠", "l":"𝙡", "m":"𝙢", "n":"𝙣", "o":"𝙤", "p":"𝙥", "q":"𝙦", "r":"𝙧", "s":"𝙨", "t":"𝙩", "u":"𝙪", "v":"𝙫", "w":"𝙬", "x":"𝙭", "y":"𝙮", "z":"𝙯" }
-	mapUpper := { "A":"𝑨", "B":"𝑩", "C":"𝑪", "D":"𝑫", "E":"𝑬", "F":"𝑭", "G":"𝑮", "H":"𝑯", "I":"𝑰", "J":"𝑱", "K":"𝑲", "L":"𝑳", "M":"𝑴", "N":"𝑵", "O":"𝑶", "P":"𝑷", "Q":"𝑸", "R":"𝑹", "S":"𝑺", "T":"𝑻", "U":"𝑼", "V":"𝑽", "W":"𝑾", "X":"𝑿", "Y":"𝒀", "Z":"𝒁" }
+	charMap := Map()
+	charMap.Set( "a","𝙖", "b","𝙗", "c","𝙘", "d","𝙙", "e","𝙚", "f","𝙛", "g","𝙜", "h","𝙝", "i","𝙞", "j","𝙟", "k","𝙠", "l","𝙡", "m","𝙢"
+			, "n","𝙣", "o","𝙤", "p","𝙥", "q","𝙦", "r","𝙧", "s","𝙨", "t","𝙩", "u","𝙪", "v","𝙫", "w","𝙬", "x","𝙭", "y","𝙮", "z","𝙯"
+			, "A","𝑨", "B","𝑩", "C","𝑪", "D","𝑫", "E","𝑬", "F","𝑭", "G","𝑮", "H","𝑯", "I","𝑰", "J","𝑱", "K","𝑲", "L","𝑳", "M","𝑴"
+			, "N","𝑵", "O","𝑶", "P","𝑷", "Q","𝑸", "R","𝑹", "S","𝑺", "T","𝑻", "U","𝑼", "V","𝑽", "W","𝑾", "X","𝑿", "Y","𝒀", "Z","𝒁" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk bold
-::bold::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::bold:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "a":"𝐚", "b":"𝐛", "c":"𝐜", "d":"𝐝", "e":"𝐞", "f":"𝐟", "g":"𝐠", "h":"𝐡", "i":"𝐢", "j":"𝐣", "k":"𝐤", "l":"𝐥", "m":"𝐦", "n":"𝐧", "o":"𝐨", "p":"𝐩", "q":"𝐪", "r":"𝐫", "s":"𝐬", "t":"𝐭", "u":"𝐮", "v":"𝐯", "w":"𝐰", "x":"𝐱", "y":"𝐲", "z":"𝐳" }
-	mapUpper := { "A":"𝐀", "B":"𝐁", "C":"𝐂", "D":"𝐃", "E":"𝐄", "F":"𝐅", "G":"𝐆", "H":"𝐇", "I":"𝐈", "J":"𝐉", "K":"𝐊", "L":"𝐋", "M":"𝐌", "N":"𝐍", "O":"𝐎", "P":"𝐏", "Q":"𝐐", "R":"𝐑", "S":"𝐒", "T":"𝐓", "U":"𝐔", "V":"𝐕", "W":"𝐖", "X":"𝐗", "Y":"𝐘", "Z":"𝐙" }
+	charMap := Map()
+	charMap.Set( "a","𝐚", "b","𝐛", "c","𝐜", "d","𝐝", "e","𝐞", "f","𝐟", "g","𝐠", "h","𝐡", "i","𝐢", "j","𝐣", "k","𝐤", "l","𝐥", "m","𝐦"
+			, "n","𝐧", "o","𝐨", "p","𝐩", "q","𝐪", "r","𝐫", "s","𝐬", "t","𝐭", "u","𝐮", "v","𝐯", "w","𝐰", "x","𝐱", "y","𝐲", "z","𝐳"
+			, "A","𝐀", "B","𝐁", "C","𝐂", "D","𝐃", "E","𝐄", "F","𝐅", "G","𝐆", "H","𝐇", "I","𝐈", "J","𝐉", "K","𝐊", "L","𝐋", "M","𝐌"
+			, "N","𝐍", "O","𝐎", "P","𝐏", "Q","𝐐", "R","𝐑", "S","𝐒", "T","𝐓", "U","𝐔", "V","𝐕", "W","𝐖", "X","𝐗", "Y","𝐘", "Z","𝐙" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk italic
-::italic::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::italic:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "a":"𝘢", "b":"𝘣", "c":"𝘤", "d":"𝘥", "e":"𝘦", "f":"𝘧", "g":"𝘨", "h":"𝘩", "i":"𝘪", "j":"𝘫", "k":"𝘬", "l":"𝘭", "m":"𝘮", "n":"𝘯", "o":"𝘰", "p":"𝘱", "q":"𝘲", "r":"𝘳", "s":"𝘴", "t":"𝘵", "u":"𝘶", "v":"𝘷", "w":"𝘸", "x":"𝘹", "y":"𝘺", "z":"𝘻" }
-	mapUpper := { "A":"𝐴", "B":"𝐵", "C":"𝐶", "D":"𝐷", "E":"𝐸", "F":"𝐹", "G":"𝐺", "H":"𝐻", "I":"𝐼", "J":"𝐽", "K":"𝐾", "L":"𝐿", "M":"𝑀", "N":"𝑁", "O":"𝑂", "P":"𝑃", "Q":"𝑄", "R":"𝑅", "S":"𝑆", "T":"𝑇", "U":"𝑈", "V":"𝑉", "W":"𝑊", "X":"𝑋", "Y":"𝑌", "Z":"𝑍" }
+	charMap := Map()
+	charMap.Set( "a","𝘢", "b","𝘣", "c","𝘤", "d","𝘥", "e","𝘦", "f","𝘧", "g","𝘨", "h","𝘩", "i","𝘪", "j","𝘫", "k","𝘬", "l","𝘭", "m","𝘮"
+			, "n","𝘯", "o","𝘰", "p","𝘱", "q","𝘲", "r","𝘳", "s","𝘴", "t","𝘵", "u","𝘶", "v","𝘷", "w","𝘸", "x","𝘹", "y","𝘺", "z","𝘻"
+			, "A","𝐴", "B","𝐵", "C","𝐶", "D","𝐷", "E","𝐸", "F","𝐹", "G","𝐺", "H","𝐻", "I","𝐼", "J","𝐽", "K","𝐾", "L","𝐿", "M","𝑀"
+			, "N","𝑁", "O","𝑂", "P","𝑃", "Q","𝑄", "R","𝑅", "S","𝑆", "T","𝑇", "U","𝑈", "V","𝑉", "W","𝑊", "X","𝑋", "Y","𝑌", "Z","𝑍" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
-	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk underline
-::underline::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::underline:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
+	out := "͟"
+	Loop Parse text {
+		out .= A_LoopField . "͟"
+	}
 	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}"
-	loop, parse, text
-		Send ͟%A_LoopField%
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk lookalike letters
-::lookalike::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::lookalike:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, VL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	map := { "a":"а", "b":"ᖯ", "c":"с", "d":"𝖽", "e":"е", "f":"𝖿", "g":"𝗀", "h":"һ", "i":"і", "j":"ј", "k":"𝗄", "l":"ӏ", "m":"ｍ", "n":"𝗇", "o":"о", "p":"р", "q":"𝗊", "r":"𝗋", "s":"ѕ", "t":"𝗍", "u":"𝗎", "v":"ν", "w":"𝗐", "x":"х", "y":"у", "z":"ꮓ", ":":"։", ";":";", "<":"˂", ">":"˃", "=":"᐀", "@":"＠", "!":"ǃ", "$":"＄", "%":"％", "&":"＆", "(":"❨", ")":"❩", "*":"*", "+":"᛭", "-":"˗" }
-	mapUpper := { "A":"Α", "B":"Β", "C":"С", "D":"Ꭰ", "E":"Ε", "F":"ꓝ", "G":"Ꮐ", "H":"Η", "I":"l", "J":"Ј", "K":"Κ", "L":"ᒪ", "M":"Μ", "N":"Ν", "O":"Ο", "P":"Ρ", "Q":"ⵕ", "R":"ꓣ", "S":"Ѕ", "T":"Τ", "U":"ꓴ", "V":"Ꮩ", "W":"Ꮃ", "X":"Χ", "Y":"Υ", "Z":"Ζ" }
+	charMap := Map()
+	charMap.Set( "a","а", "b","ᖯ", "c","с", "d","𝖽", "e","е", "f","𝖿", "g","𝗀", "h","һ", "i","і", "j","ј", "k","𝗄", "l","ӏ", "m","ｍ"
+			, "n","𝗇", "o","о", "p","р", "q","𝗊", "r","𝗋", "s","ѕ", "t","𝗍", "u","𝗎", "v","ν", "w","𝗐", "x","х", "y","у", "z","ꮓ"
+			, ":","։", ";",";", "<","˂", ">","˃", "=","᐀", "@","＠", "!","ǃ", "$","＄", "%","％", "&","＆", "(","❨", ")","❩", "*","*", "+","᛭", "-","˗"
+			, "A","Α", "B","Β", "C","С", "D","Ꭰ", "E","Ε", "F","ꓝ", "G","Ꮐ", "H","Η", "I","l", "J","Ј", "K","Κ", "L","ᒪ", "M","Μ"
+			, "N","Ν", "O","Ο", "P","Ρ", "Q","ⵕ", "R","ꓣ", "S","Ѕ", "T","Τ", "U","ꓴ", "V","Ꮩ", "W","Ꮃ", "X","Χ", "Y","Υ", "Z","Ζ" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " StrLen(text) + 1 "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
 ; Bulk rot13 code
-::rot13::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+::rot13:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, MVL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	; If they didn't type anything, take the text from the clipboard
-	if StrLen(text) = 0
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := 1
-	}
-	
-	; Detects if user pasted text, uses that if so
-	else if Asc(text) = 22
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := StrLen(text) + 1
-	}
-	else
-	{
-		backspace := StrLen(text) + 1
-	}
-	
-	map := {"a":"n", "b":"o", "c":"p", "d":"q", "e":"r", "f":"s", "g":"t", "h":"u", "i":"v", "j":"w", "k":"x", "l":"y", "m":"z", "n":"a", "o":"b", "p":"c", "q":"d", "r":"e", "s":"f", "t":"g", "u":"h", "v":"i", "w":"j", "x":"k", "y":"l", "z":"m"}
-	mapUpper := {"A":"N", "B":"O", "C":"P", "D":"Q", "E":"R", "F":"S", "G":"T", "H":"U", "I":"V", "J":"W", "K":"X", "L":"Y", "M":"Z", "N":"A", "O":"B", "P":"C", "Q":"D", "R":"E", "S":"F", "T":"G", "U":"H", "V":"I", "W":"J", "X":"K", "Y":"L", "Z":"M"}
+	charMap := Map()
+	charMap.Set( "a","n", "b","o", "c","p", "d","q", "e","r", "f","s", "g","t", "h","u", "i","v", "j","w", "k","x", "l","y", "m","z"
+			, "n","a", "o","b", "p","c", "q","d", "r","e", "s","f", "t","g", "u","h", "v","i", "w","j", "x","k", "y","l", "z","m"
+			, "A","N", "B","O", "C","P", "D","Q", "E","R", "F","S", "G","T", "H","U", "I","V", "J","W", "K","X", "L","Y", "M","Z"
+			, "N","A", "O","B", "P","C", "Q","D", "R","E", "S","F", "T","G", "U","H", "V","I", "W","J", "X","K", "Y","L", "Z","M" )
 	
 	out := ""
-	loop, parse, text
-		if A_LoopField is upper
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
-		else
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
 	
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " backspace "}{Raw}" out
-return
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
 
-; Bulk alternating caps
-::mock::
-	; Because ahk is weird, breaks suspend otherwise
-	Sleep -1
+; Bulk alternating caps with randomness
+::mock:: {
+	GatherInput(&text, &backspaceCount)
 	
-	; Collects all input until %endchar%, stores it in the variable 'text'. Give up after L characters or T seconds
-	Suspend
-	input, text, MVL1000T90, %endchar%
-	Suspend
-	
-	; Just give up if they took too long or typed too much
-	if ErrorLevel in Max,Timeout
-		return
-	
-	; If they didn't type anything, take the text from the clipboard
-	if StrLen(text) = 0
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := 1
-	}
-	
-	; Detects if user pasted text, uses that if so
-	else if Asc(text) = 22
-	{
-		text := clipboard
-		if StrLen(text) > 5000
-		{
-			return
-		}
-		backspace := StrLen(text) + 1
-	}
-	else
-	{
-		backspace := StrLen(text) + 1
-	}
-	
-	map := {"a":"a", "b":"b", "c":"c", "d":"d", "e":"e", "f":"f", "g":"g", "h":"h", "i":"i", "j":"j", "k":"k", "l":"l", "m":"m", "n":"n", "o":"o", "p":"p", "q":"q", "r":"r", "s":"s", "t":"t", "u":"u", "v":"v", "w":"w", "x":"x", "y":"y", "z":"z"}
-	mapUpper := {"a":"A", "b":"B", "c":"C", "d":"D", "e":"E", "f":"F", "g":"G", "h":"H", "i":"I", "j":"J", "k":"K", "l":"L", "m":"M", "n":"N", "o":"O", "p":"P", "q":"Q", "r":"R", "s":"S", "t":"T", "u":"U", "v":"V", "w":"W", "x":"X", "y":"Y", "z":"Z"}
-
-	
+	; bias biases it against long strings in a row where the case doesn't change at all
+	bias := 0.0
 	out := ""
-	loop, parse, text
-	{
-		Random, lowercase, 0, 1
-		if lowercase < 0.5
-			out .= map.HasKey(A_LoopField) ? map[A_LoopField] : A_LoopField
-		else
-			out .= mapUpper.HasKey(A_LoopField) ? mapUpper[A_LoopField] : A_LoopField
+	Loop Parse text {
+		lowercase := Random(0, 1)
+		if lowercase < 0.5 + bias {
+			if bias > 0 {
+				bias := -0.1
+			} else {
+				bias -= 0.25
+			}
+			out .= StrLower(A_LoopField)
+		} else {
+			if bias < 0 {
+				bias := 0.1
+			} else {
+				bias += 0.25
+			}
+			out .= StrUpper(A_LoopField)
+		}
 	}
-	; Backspaces typed text, outputs new text
-	Send % "{Backspace " backspace "}{Raw}" out
-return
+	
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
+
+; Bulk alternating caps without randomness
+::mock2:: {
+	GatherInput(&text, &backspaceCount)
+	
+	lower := True
+	out := ""
+	Loop Parse text {
+		out .= lower ? StrLower(A_LoopField) : StrUpper(A_LoopField)
+		lower := !lower
+	}
+	
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
+
+
+
+; Conversions
+
+GatherNum(&val, &backspaceCount, &HonorSigFigs) {
+	GatherInput(&val, &backspaceCount)
+	HonorSigFigs := SubStr(val, 1, 1) == "!" ? (val := SubStr(val, 2), True) : False
+	FormatVal(&val)
+	if val == "NaN" {
+		Send "{Backspace}"
+		return True
+	}
+}
+
+; Formats user input to make sure it's a
+; number, remove leading and trailing
+; whitespace, and remove leading 0s.  
+; Purposely avoids doing math operations to avoid
+; floating point precision errors messing up 
+; significant figure calculations
+FormatVal(&val) {
+	if !IsNumber(val) {
+		val := calc(val)
+		if !IsNumber(val) {
+			val := "NaN"
+			return
+		}
+	}
+	; Trim leading and trailing whitespace
+	val := Trim(val)
+	; Trim leading 0s
+	; Account for leading - in negatives
+	val := StrSplit(val, "-")
+	if val.length == 1 { ; positive
+		val := LTrim(val[1], "0")
+	} else  { ; negative
+		val := "-" . LTrim(val[2], "0")
+	}
+	if val == "" or val == "-" or val == "." {
+		val := "0"
+	}
+	; Intentionally allows a trailing decimal to indicate
+	; significance of trailing 0s in an integer value
+	return
+}
+
+; Determines the number of significant figures in val
+DetermineSigFigs(val, &SigFigs) {
+	; Ensures val is a well formatted number with nothing extra
+	FormatVal(&val)
+	; Remove any negatives, not relevant here
+	if InStr(val, "-") {
+		val := SubStr(val, 2)
+	}
+	; Number is only an integer
+	if !InStr(val, ".") {
+		if val == 0 { ; Entire number is 0
+			SigFigs := 1
+			return
+		}
+		; Remove insignificant trailing 0s
+		val := RTrim(val, "0")
+		SigFigs := StrLen(val)
+		return
+	}
+	; Number has a decimal point
+	SigFigs := 0
+	; Split into integer and decimal parts
+	splitVal := StrSplit(val, ".")
+	if StrLen(splitVal[1]) > 0 and splitVal[1] > 0 {
+		; If integer part isn't 0, it's all significant
+		SigFigs += StrLen(splitVal[1])
+	}
+	if SigFigs > 0 {
+		; If integer part isn't 0, all of the decimal part is significant
+		SigFigs += StrLen(splitVal[2])
+	} else {
+		; If integer part is 0, only parts of decimal part from first nonzero entry is significant, unless it's all 0s
+		trimmedVal2 := LTrim(splitVal[2], "0")
+		if trimmedVal2 == "" {
+			SigFigs += StrLen(splitVal[2])
+		} else {
+			SigFigs += StrLen(trimmedVal2)
+		}
+	}
+}
+
+FormatSigFigs(&val, SigFigs) {
+	DetermineSigFigs(val, &valSigFigs)
+	if valSigFigs == SigFigs { ; Done!  
+		return
+	} else if valSigFigs <= SigFigs { ; Just add on 0s until it's good
+		if !InStr(val, ".") { ; Add a decimal if it's not already there
+			val .= "."
+		}
+		while valSigFigs <= SigFigs {
+			val .= "0"
+			valSigFigs += 1
+		}
+		return
+	} else { ; Too many sig figs - gotta cut back
+		; Find index of first sig fig
+		firstSigIndex := 1
+		Loop Parse val {
+			if (IsNumber(A_LoopField) and A_LoopField != "0") {
+				break
+			}
+			firstSigIndex += 1
+		}
+		; Find index of first digit after last sig fig
+		rightIndex := 1
+		sigFigsSeen := 1
+		Loop Parse val {
+			if rightIndex <= firstSigIndex {
+				rightIndex += 1
+				continue
+			}
+			if sigFigsSeen == SigFigs {
+				if IsNumber(A_LoopField) {
+					break
+				}
+				rightIndex += 1
+				continue
+			}
+			if IsNumber(A_LoopField) {
+				sigFigsSeen += 1
+			}
+			rightIndex += 1
+		}
+		; Index of decimal point
+		decimalIndex := InStr(val, ".")
+		if decimalIndex == 0 { ; Ensure all numbers have a decimal to make logic simpler
+			val .= "."
+			decimalIndex := StrLen(val)
+		}
+		; roundPos picks which digit to round on
+		; endPos is to chop off floating point precision errors in the end
+		if rightIndex > decimalIndex { ; Rounding right of the decimal
+			roundPos := rightIndex - decimalIndex - 1
+			endPos := rightIndex - 1
+		} else { ; Rounding left of the decimal
+			roundPos := rightIndex - decimalIndex
+			endPos := decimalIndex - 1
+		}
+		val := Round(val, roundPos)
+		if roundPos == 0 and SubStr(val, -1, 1) == 0 {
+			; Rounded to nearest integer and the ones place is 0
+			; Show the decimal to indicate the 0 is significant
+			val .= "."
+		}
+		val := SubStr(val, 1, endPos)
+	}
+}
+
+; Generic calculation function, alternates between multiplying and adding values to val
+Convert(val, params, reverse := False) {
+	mult := (reverse and Mod(params.length, 2) == 0) ? False : True
+	index := reverse ? -1 : 1
+	diff := reverse ? -1 : 1
+	end := reverse ? -params.length - 1 : params.length + 1
+	while index != end {
+		if mult {
+			val := reverse ? val / params[index] : val * params[index]
+		} else {
+			val := reverse ? val - params[index] : val + params[index]
+		}
+		mult := !mult
+		index += diff
+	}
+	return val
+}
+
+
+
+; Conversions start here
+
+FormatUnit(&unit) {
+	; Below StrReplace calls do this - might swap them at some point to do speed comparisons if necessary
+	; str := StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(unit, "^"), " "), "uared"), "uare"), "sq", "2"), "bic"), "bed"), "be"), "cu", "3")
+	unit := StrReplace(unit, "^")
+	unit := StrReplace(unit, " ")
+	unit := StrReplace(unit, "uared")
+	unit := StrReplace(unit, "uare")
+	unit := StrReplace(unit, "sq", "2")
+	unit := StrReplace(unit, "bic")
+	unit := StrReplace(unit, "bed")
+	unit := StrReplace(unit, "be")
+	unit := StrReplace(unit, "cu", "3")
+	if IsNumber(num := SubStr(unit, 1, 1)) {
+		unit := SubStr(unit, 2) . num
+		if unit = "p3" {
+			unit := "cup"
+		}
+	}
+	if endsInNumber := IsNumber(endingNum := SubStr(unit, -1, 1)) {
+		unit := SubStr(unit, 1, -1)
+	}
+	if SubStr(unit, -1, 1) = "s" and StrLen(unit) != 1 {
+		unit := SubStr(unit, 1, -1)
+	}
+	if endsInNumber {
+		unit .= endingNum
+	}
+}
+
+; Temperature: celsius, fahrenheit, kelvin, rankine
+; Length: meter, inch, foot, yard, mile, lightyear, parsec
+; Area: meter², inch², foot², yard², mile², acre, hectare
+; Volume: liter, meter³, teaspoon, tablespoon, cup, pints, quarts, gallon, inch³, foot³, yard³, mile³
+; Mass: gram, ounce, pound, stone, ton, metric ton
+; Time: day, second, minute, hour, week, fortnight, year, decade, score, century, millennium
+; Angular measure: degree, radian, gradian, arcminute, arcsecond
+::convert:: {
+	GatherInput(&input, &backspaceCount)
+	Send "{Backspace " . backspaceCount . "}"
+	input := StrSplit(input, ",", " ")
+	if input.length != 3 {
+		Send "Incorrect format"
+		return
+	}
+	unit1 := input[1]
+	unit2 := input[2]
+	val := input[3]
+	HonorSigFigs := SubStr(val, 1, 1) == "!" ? (val := SubStr(val, 2), True) : False
+	NoSuffix := SubStr(val, -1, 1) == "!" ? (val := SubStr(val, 1, -1), True) : False
+	FormatVal(&val)
+	if val == "NaN" {
+		Send "NaN"
+		return True
+	}
+	
+	FormatUnit(&unit1)
+	FormatUnit(&unit2)
+	
+	dimensions := Map("temperature", Map("℃", ["c", "celsiu"], "℉", ["f", "fahrenheit"], " K", ["k", "kelvin"], "°R", ["r", "rankine"]), "length", Map(" m", ["m", "me", "meter", "metre"], '"', ["in", "inch", "inche", '"'], "'", ["ft", "foot", "feet", "'"], " yards", ["y", "yd", "yard"], " fathoms", ["fathom"], " furlongs", ["furlong"], " miles", ["mi", "mile"], " nautical miles", ["nauticalmile"], " astronomical units", ["au", "astronomical units"], " lightyears", ["ly", "lightyear"], " parsecs", ["ps", "parsec"]), "area", Map(" m²", ["m2", "meter2", "metre2"], " in²", ["in2", "inch2", "inche2"], " ft²", ["ft2", "foot2", "feet2"], " yd²", ["y2", "yd2", "yard2"], " miles²", ["mi2", "mile2"], " acres", ["ac", "acre"], " hectares", ["ha", "hectare"]), "volume", Map(" liters", ["l", "liter"], " m³", ["m3", "meter3", "metre3"], " tsp", ["tsp", "teaspoon"], " tbsp", ["tb", "tbsp", "tablespoon"], " fluid ounces", ["fl", "fluidounce", "flounce", "fl.ounce", "floz", "fl.oz", "fluidoz"], " cups", ["c", "cup"], " pints", ["p", "pint"], " quarts", ["q", "quart"], " gallons", ["g", "gal", "gallon"], " in³", ["in3", "inch3", "inche3"], " ft³", ["ft3", "foot3", "feet3"], " yd³", ["y3", "yd3", "yard3"], " miles³", ["mi3", "mile3"]), "mass", Map(" grams", ["g", "gram"], " oz", ["oz", "ounce"], " lbs", ["lb", "pound"], " stones", ["st", "stone", "s"], " tons", ["ton"], " metric tons", ["mt", "metricton"]), "time", Map(" days", ["d", "day"], " seconds", ["s", "sec", "second"], " minutes", ["m", "min", "minute"], " hours", ["h", "hour"], " weeks", ["w", "week"], " fortnights", ["fn", "fortnight"], " years", ["y", "year"], " decades", ["dec", "decade"], " scores", ["sc", "score"], " centuries", ["c", "century", "centurie"], " millenniums", ["mil", "mill", "millennium", "millennia"]), "angular measure", Map("°", ["d", "deg", "degree"], " radians", ["r", "rad", "radian"], "gradians", ["g", "grad", "gradian"], "'", ["am", "arcm", "arcmin", "arcminute"], '"', ["as", "arcs", "arcsec", "arcsecond"]))
+
+	conversions := Map("temperature", Map("℃", [], "℉", [1, -32, 5/9], " K", [1, -273.15], "°R", [5/9, -273.15]), "length", Map(" m", [], '"', [.0254], "'", [.3048], " yards", [.9144], " fathoms", [1.8288], " furlongs", [201.168], " miles", [1609.344], " nautical miles", [1852], " astronomical units", [149597870700], " lightyears", [9460730472580800], " parsecs", [149597870700*648000/3.14159265358979]), "area", Map(" m²", [], " in²", [6.4516/10000], " ft²", [929.0304/10000], " yd²", [0.83612736], " miles²", [2589988.110336], " acres", [4046.8564224], " hectares", [10000]), "volume", Map(" liters", [], " m³", [1000], " tsp", [4.92892159375/1000], " tbsp", [3*4.92892159375/1000], " fluid ounces", [.0295735295625], " cups", [236.5882365/1000], " pints", [236.5882365/500], " quarts", [236.5882365/250], " gallons", [3.785411784], " in³", [16.387064/1000], " ft³", [28.316846592], " yd³", [764.554857984], " miles³", [5451776000*764.554857984]), "mass", Map(" grams", [], " oz", [28.349523125], " lbs", [453.59237], " stones", [6350.29318], " tons", [907184.74], " metric tons", [1000000]), "time", Map(" seconds", [], " minutes", [60], " hours", [3600], " days", [86400], " weeks", [604800], " fortnights", [1209600], " years", [31557600], " decades", [315576000], " scores", [631152000], " centuries", [3155760000], " millenniums", [31557600000]), "angular measure", Map("°", [], " radians", [180/3.14159265358979], " gradians", [.9], "'", [1/60], '"', [1/3600]))
+
+	metricPrefixes := Map("quetta", 10**30,  "ronna", 10**27,  "yotta", 10**24,  "zetta", 10**21,  "exa", 10**18,  "peta", 10**15,  "tera", 10**12,  "giga", 10**9,  "mega", 10**6,  "kilo", 10**3,  "hecto", 10**2,  "deca", 10,  "deci", 10**-1,  "centi", 10**-2,  "milli", 10**-3,  "micro", 10**-6,  "nano", 10**-9,  "pico", 10**-12,  "femto", 10**-15,  "atto", 10**-18,  "zepto", 10**-21,  "yocto", 10**-24,  "ronto", 10**-27,  "quecto", 10**-30, "Q", 10**30,  "R", 10**27,  "Y", 10**24,  "Z", 10**21,  "E", 10**18,  "P", 10**15,  "T", 10**12,  "G", 10**9,  "M", 10**6,  "k", 10**3,  "h", 10**2,  "da", 10,  "d", 10**-1,  "c", 10**-2,  "m", 10**-3,  "mu", 10**-6,  "μ", 10**-6, "n", 10**-9,  "p", 10**-12,  "f", 10**-15,  "a", 10**-18,  "z", 10**-21,  "y", 10**-24,  "r", 10**-27,  "q", 10**-30)
+	
+	metricSymbols := Map("Q", "quetta",  "R", "ronna",  "Y", "yotta",  "Z", "zetta",  "E", "exa",  "P", "peta",  "T", "tera",  "G", "giga",  "M", "mega",  "k", "kilo",  "h", "hecto",  "da", "deca",  "d", "deci",  "c", "centi",  "m", "milli",  "mu", "micro",  "μ", "micro", "n", "nano",  "p", "pico",  "f", "femto",  "a", "atto",  "z", "zepto",  "y", "yocto",  "r", "ronto",  "q", "quecto")
+	
+	; At this point user input will either be a valid match to a unit in the supported units list, perhaps with an SI prefix, or it will be invalid.  
+	unit1Matches := []
+	unit2Matches := []
+	for dimension, units in dimensions {
+		for unit, spellings in units {
+			for spelling in spellings {
+				if SubStr(unit1, -StrLen(spelling)) = spelling {
+					prefix := ""
+					if StrLen(unit1) > unitLen := StrLen(spelling) {
+						prefix := SubStr(unit1, 1, -unitLen)
+						if !metricPrefixes.has(prefix) {
+							continue
+						}
+					}
+					unit1Matches.push([dimension, unit, prefix])
+				}
+				if SubStr(unit2, -StrLen(spelling)) = spelling {
+					prefix := ""
+					if StrLen(unit2) > unitLen := StrLen(spelling) {
+						prefix := SubStr(unit2, 1, -unitLen)
+						if !metricPrefixes.has(prefix) {
+							continue
+						}
+					}
+					unit2Matches.push([dimension, unit, prefix])
+				}
+			}
+		}
+	}
+	if unit1Matches.Length == 0 {
+		Send "Unknown unit: " . unit1
+		return
+	} else if unit2Matches.Length == 0 {
+		Send "Unknown unit: " . unit2
+		return
+	}
+	matchFound := False
+	for match1 in unit1Matches {
+		for match2 in unit2Matches {
+			if match1[1] == match2[1] {
+				unit1 := match1
+				unit2 := match2
+				matchFound := True
+				break
+			}
+		}
+		if matchFound {
+			break
+		}
+	}
+	if !matchFound {
+		Send "Dimensional mismatch"
+		return
+	}
+	newVal := val
+	if (prefix := unit1[3]) != "" {
+		if unit1[1] == "area" {
+			newVal *= metricPrefixes[prefix]**2
+		} else if unit1[1] == "volume" {
+			newVal *= metricPrefixes[prefix]**3
+		} else {
+			newVal *= metricPrefixes[prefix]
+		}
+	}
+	newVal := Convert(newVal, conversions[unit1[1]][unit1[2]])
+	newVal := Convert(newVal, conversions[unit2[1]][unit2[2]], True)
+	if (prefix := unit2[3]) != "" {
+		if unit2[1] == "area" {
+			newVal /= metricPrefixes[prefix]**2
+		} else if unit2[1] == "volume" {
+			newVal /= metricPrefixes[prefix]**3
+		} else {
+			newVal /= metricPrefixes[prefix]
+		}
+	}
+	if HonorSigFigs {
+		DetermineSigFigs(val, &SigFigs)
+		FormatSigFigs(&newVal, SigFigs)
+	} else {
+		newVal := Round(newVal, 2)
+		if Integer(newVal) == newVal {
+			newVal := Integer(newVal)
+		}
+	}
+	if (prefix := unit2[3]) != "" {
+		if metricSymbols.has(prefix) {
+			prefix := metricSymbols[prefix]
+		}
+		if SubStr(unit2[2], 1, 1) == " " {
+			suffix := " " . prefix . SubStr(unit2[2], 2)
+		}
+	} else {
+		suffix := unit2[2]
+	}
+	if NoSuffix {
+		suffix := ""
+	}
+	Send newVal . suffix
+}
+
+
+
+; Below code taken from this reddit comment:
+; https://old.reddit.com/r/AutoHotkey/comments/129491b/how_to_force_ahk_to_evaluate_a_string_as_an/jepkhfb/
+; Then ported to authotkey v2 and modified to avoid unintended concatenations and better obey order of operations
+; Evaluates a string
+; Operators
+;   Parentheses     ( ... )
+;   Exponents       ^
+;   Multiplication  *
+;   Floor division  //
+;   Division        /
+;   Addition        +
+;   Subtraction     -
+; Multiplication/Floor division/Divison are on the same level of order of operations, as are Addition/Subtraction
+calc(str, first:=1) {
+    Static rgx := {para :"(.*?)\(([\d|\+|\-|\*|\/|\.]*?)\)(.*?)$"
+                  ,num1 :"(.*?)(-?\d+(?:\.\d+)?)"
+                  ,num2 :"(-?\d+(?:\.\d+)?)(.*?)"}
+
+    if first {                                                      ; Only do during first time run
+		str := StrReplace(str, "pi", "3.141592653589793238")
+		str := StrReplace(str, "e", "2.718281828")
+		str := RegExReplace(str, "(\d)\(", "$1*(")                  ; Turn 3(4+5) into 3*(4+5) to prevent concatenation
+		str := RegExReplace(str, "\)(\d)", ")*$1")                  ; Turn (4+5)3 into (4+5)*3 for same reason
+		str := RegExReplace(str, "\)\(", ")*(")                     ; Turn (3+4)(5+6) into (3+4)*(5+6) for same reason
+        StrReplace(str, "(", "(", 0, &pOpen)                        ; Count open parens
+        StrReplace(str, ")", ")", 0, &pClose)                       ; Count close parens
+        if (pOpen != pClose) {                                      ; Error if they don't match
+            return "Error. Open/close parentheses mismatch."
+		}
+        str := StrReplace(str, " ")                                 ; Remove all spaces
+        while RegExMatch(str, rgx.para, &m) {                 		; If parens still exist
+            str := m.1 . calc(m.2, 0) . m.3                         ; Recursively eliminate them
+		}
+    }
+	while RegExMatch(str, rgx.num1 . "(\^)" . rgx.num2 . "$", &m) { ; While "number sign number" exists
+		str := m.1 . (m.2 ** m.4) . m.5
+	}
+	while RegExMatch(str, rgx.num1 . "([*/]|//)" . rgx.num2 . "$", &m) {
+		switch m.3 {                                                ; Check sign and do appropriate operation
+			case "*"  : str := m.1 . (m.2 * m.4) .  m.5
+			case "//" : str := m.1 . (m.2 // m.4) . m.5
+			case "/"  : str := m.1 . (m.2 / m.4) .  m.5
+		}
+	}
+	while RegExMatch(str, rgx.num1 . "([+-])" . rgx.num2 . "$", &m) {
+		switch m.3 {
+			case "+"  : str := m.1 . (m.2 + m.4) .  m.5
+			case "-"  : str := m.1 . (m.2 - m.4) .  m.5
+		}
+	}
+
+    while InStr(str, ".") && (SubStr(str, -1) = 0) {                ; If decimal and ends in 0
+        str := SubStr(str, 1, -1)                                   ; Remove the zero
+	}
+    return RTrim(str, ".")                                          ; Return after removing trailing decimal
+}
+
+::calc:: {
+	GatherInput(&text, &backspaceCount)
+	if i := InStr(text, ",") {
+		roundNum := SubStr(text, 1, i-1)
+		text := SubStr(text, i+1)
+	}
+	out := calc(text)
+	if i {
+		out := round(out, roundNum)
+	}
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
