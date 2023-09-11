@@ -631,7 +631,6 @@ endchar := "\"
 ::ankh::☥
 ::Rx::℞
 ::sine::∿
-::/0::�
 ::bullet::•
 ::flat::♭
 ::sharp::♯
@@ -1065,7 +1064,6 @@ GatherInput(&text, &backspaceCount) {
 	text.Start()
 	text.Wait()
 	Suspend
-	
 	; Just give up if they took too long or typed too much
 	if text.EndReason == "Max" or text.EndReason == "Timeout" {
 		text := ""
@@ -1073,33 +1071,14 @@ GatherInput(&text, &backspaceCount) {
 		return
 	}
 	text := text.Input
-	
-	if StrLen(text) == 0 { ; If they didn't type anything, take the text from the clipboard
-		text := A_Clipboard
-		if StrLen(text) > 2000 { ; Give up if the clipboard is too large
-			text := ""
-			backspaceCount := 1
-			return
-		}
-		backspaceCount := 1
-	} else if Ord(text) == 22 { ; Detects if user pasted text, uses that if so
-		text := A_Clipboard
-		if StrLen(text) > 2000 { ; Give up if they pasted too much
-			return
-		}
-		backspaceCount := StrLen(text) + 1
-		StrReplace(text, "`r`n", "`r`n",, &count)
-		; Because CR+LF can be undone with one press of backspace
-		backspaceCount -= count
-	} else { ; They typed the input manually
-		backspaceCount := StrLen(text) + 1
-		StrReplace(text, "`r`n", "`r`n",, &count)
-		; Because CR+LF can be undone with one press of backspace
-		backspaceCount -= count
-	}
-	
+	; Handles pasting
+	text := StrReplace(text, Chr(22), A_Clipboard)
 	text := StrReplace(text, "`r", "  ")
 	text := StrReplace(text, "`n", "  ")
+	backspaceCount := StrLen(text) + 1
+	if StrLen(text) == 0 { ; If they didn't type anything, take the text from the clipboard
+		text := A_Clipboard
+	}
 }
 
 ; Bulk superscripting
@@ -1815,9 +1794,9 @@ FormatUnit(&unit) {
 		Send "Incorrect format"
 		return
 	}
-	unit1 := input[1]
-	unit2 := input[2]
-	val := input[3]
+	val := input[1]
+	unit1 := input[2]
+	unit2 := input[3]
 	HonorSigFigs := SubStr(val, 1, 1) == "!" ? (val := SubStr(val, 2), True) : False
 	NoSuffix := SubStr(val, -1, 1) == "!" ? (val := SubStr(val, 1, -1), True) : False
 	FormatVal(&val)
@@ -1829,11 +1808,72 @@ FormatUnit(&unit) {
 	FormatUnit(&unit1)
 	FormatUnit(&unit2)
 	
-	dimensions := Map("temperature", Map("℃", ["c", "celsiu"], "℉", ["f", "fahrenheit"], " K", ["k", "kelvin"], "°R", ["r", "rankine"]), "length", Map(" m", ["m", "me", "meter", "metre"], '"', ["in", "inch", "inche", '"'], "'", ["ft", "foot", "feet", "'"], " yards", ["y", "yd", "yard"], " fathoms", ["fathom"], " furlongs", ["furlong"], " miles", ["mi", "mile"], " nautical miles", ["nauticalmile"], " astronomical units", ["au", "astronomical units"], " lightyears", ["ly", "lightyear"], " parsecs", ["ps", "parsec"]), "area", Map(" m²", ["m2", "meter2", "metre2"], " in²", ["in2", "inch2", "inche2"], " ft²", ["ft2", "foot2", "feet2"], " yd²", ["y2", "yd2", "yard2"], " miles²", ["mi2", "mile2"], " acres", ["ac", "acre"], " hectares", ["ha", "hectare"]), "volume", Map(" liters", ["l", "liter"], " m³", ["m3", "meter3", "metre3"], " tsp", ["tsp", "teaspoon"], " tbsp", ["tb", "tbsp", "tablespoon"], " fluid ounces", ["fl", "fluidounce", "flounce", "fl.ounce", "floz", "fl.oz", "fluidoz"], " cups", ["c", "cup"], " pints", ["p", "pint"], " quarts", ["q", "quart"], " gallons", ["g", "gal", "gallon"], " in³", ["in3", "inch3", "inche3"], " ft³", ["ft3", "foot3", "feet3"], " yd³", ["y3", "yd3", "yard3"], " miles³", ["mi3", "mile3"]), "mass", Map(" grams", ["g", "gram"], " oz", ["oz", "ounce"], " lbs", ["lb", "pound"], " stones", ["st", "stone", "s"], " tons", ["ton"], " metric tons", ["mt", "metricton"]), "time", Map(" days", ["d", "day"], " seconds", ["s", "sec", "second"], " minutes", ["m", "min", "minute"], " hours", ["h", "hour"], " weeks", ["w", "week"], " fortnights", ["fn", "fortnight"], " years", ["y", "year"], " decades", ["dec", "decade"], " scores", ["sc", "score"], " centuries", ["c", "century", "centurie"], " millenniums", ["mil", "mill", "millennium", "millennia"]), "angular measure", Map("°", ["d", "deg", "degree"], " radians", ["r", "rad", "radian"], "gradians", ["g", "grad", "gradian"], "'", ["am", "arcm", "arcmin", "arcminute"], '"', ["as", "arcs", "arcsec", "arcsecond"]))
+	dimensions := Map("temperature", Map(
+						"℃", [["c", "celsiu"], []]
+						, "℉", [["f", "fahrenheit"], [1, -32, 5/9]]
+						, " K", [["k", "kelvin"], [1, -273.15]]
+						, "°R", [["r", "rankine"], [5/9, -273.15]] )
+					, "length", Map(
+						" meters", [["m", "me", "meter", "metre"], []]
+						, '"', [["in", "inch", "inche", '"'], [.0254]]
+						, "'", [["ft", "foot", "feet", "'"], [.3048]]
+						, " yards", [["y", "yd", "yard"], [.9144]]
+						, " fathoms", [["fathom"], [1.8288]]
+						, " furlongs", [["furlong"], [201.168]]
+						, " miles", [["mi", "mile"], [1609.344]]
+						, " nautical miles", [["nauticalmile"], [1852]]
+						, " astronomical units", [["au", "astronomical units"], [149597870700]]
+						, " lightyears", [["ly", "lightyear"], [9460730472580800]]
+						, " parsecs", [["ps", "parsec"], [149597870700*648000/3.14159265358979]] )
+					, "area", Map(
+						" m²", [["m2", "meter2", "metre2"], []]
+						, " in²", [["in2", "inch2", "inche2"], [6.4516/10000]]
+						, " ft²", [["ft2", "foot2", "feet2"], [929.0304/10000]]
+						, " yd²", [["y2", "yd2", "yard2"], [0.83612736]]
+						, " miles²", [["mi2", "mile2"], [2589988.110336]]
+						, " acres", [["ac", "acre"], [4046.8564224]]
+						, " hectares", [["ha", "hectare"], [10000]])
+					, "volume", Map(
+						" liters", [["l", "liter"], []]
+						, " m³", [["m3", "meter3", "metre3"], [1000]]
+						, " tsp", [["tsp", "teaspoon"], [4.92892159375/1000]]
+						, " tbsp", [["tb", "tbsp", "tablespoon"], [3*4.92892159375/1000]]
+						, " fluid ounces", [["fl", "fluidounce", "flounce", "fl.ounce", "floz", "fl.oz", "fluidoz"], [.0295735295625]]
+						, " cups", [["c", "cup"], [236.5882365/1000]]
+						, " pints", [["p", "pint"], [236.5882365/500]]
+						, " quarts", [["q", "quart"], [236.5882365/250]]
+						, " gallons", [["g", "gal", "gallon"], [3.785411784]]
+						, " in³", [["in3", "inch3", "inche3"], [16.387064/1000]]
+						, " ft³", [["ft3", "foot3", "feet3"], [28.316846592]]
+						, " yd³", [["y3", "yd3", "yard3"], [764.554857984]]
+						, " miles³", [["mi3", "mile3"], [5451776000*764.554857984]])
+					, "mass", Map(
+						" grams", [["g", "gram"], []]
+						, " oz", [["oz", "ounce"], [28.349523125]]
+						, " lbs", [["lb", "pound"], [453.59237]]
+						, " stones", [["st", "stone", "s"], [6350.29318]]
+						, " tons", [["ton"], [907184.74]]
+						, " metric tons", [["mt", "metricton"], [1000000]])
+					, "time", Map(
+						" seconds", [["s", "sec", "second"], []]
+						, " minutes", [["m", "min", "minute"], [60]]
+						, " hours", [["h", "hour"], [3600]]
+						, " days", [["d", "day"], [86400]]
+						, " weeks", [["w", "week"], [604800]]
+						, " fortnights", [["fn", "fortnight"], [1209600]]
+						, " years", [["y", "year"], [31557600]]
+						, " decades", [["dec", "decade"], [315576000]]
+						, " scores", [["sc", "score"], [631152000]]
+						, " centuries", [["c", "century", "centurie"], [3155760000]]
+						, " millenniums", [["mil", "mill", "millennium", "millennia"], [31557600000]])
+					, "angular measure", Map(
+						"°", [["d", "deg", "degree"], []]
+						, " radians", [["r", "rad", "radian"], [180/3.14159265358979]]
+						, "gradians", [["g", "grad", "gradian"], [.9]]
+						, "'", [["am", "arcm", "arcmin", "arcminute"], [1/60]]
+						, '"', [["as", "arcs", "arcsec", "arcsecond"], [1/3600]]))
 
-	conversions := Map("temperature", Map("℃", [], "℉", [1, -32, 5/9], " K", [1, -273.15], "°R", [5/9, -273.15]), "length", Map(" m", [], '"', [.0254], "'", [.3048], " yards", [.9144], " fathoms", [1.8288], " furlongs", [201.168], " miles", [1609.344], " nautical miles", [1852], " astronomical units", [149597870700], " lightyears", [9460730472580800], " parsecs", [149597870700*648000/3.14159265358979]), "area", Map(" m²", [], " in²", [6.4516/10000], " ft²", [929.0304/10000], " yd²", [0.83612736], " miles²", [2589988.110336], " acres", [4046.8564224], " hectares", [10000]), "volume", Map(" liters", [], " m³", [1000], " tsp", [4.92892159375/1000], " tbsp", [3*4.92892159375/1000], " fluid ounces", [.0295735295625], " cups", [236.5882365/1000], " pints", [236.5882365/500], " quarts", [236.5882365/250], " gallons", [3.785411784], " in³", [16.387064/1000], " ft³", [28.316846592], " yd³", [764.554857984], " miles³", [5451776000*764.554857984]), "mass", Map(" grams", [], " oz", [28.349523125], " lbs", [453.59237], " stones", [6350.29318], " tons", [907184.74], " metric tons", [1000000]), "time", Map(" seconds", [], " minutes", [60], " hours", [3600], " days", [86400], " weeks", [604800], " fortnights", [1209600], " years", [31557600], " decades", [315576000], " scores", [631152000], " centuries", [3155760000], " millenniums", [31557600000]), "angular measure", Map("°", [], " radians", [180/3.14159265358979], " gradians", [.9], "'", [1/60], '"', [1/3600]))
-
-	metricPrefixes := Map("quetta", 10**30,  "ronna", 10**27,  "yotta", 10**24,  "zetta", 10**21,  "exa", 10**18,  "peta", 10**15,  "tera", 10**12,  "giga", 10**9,  "mega", 10**6,  "kilo", 10**3,  "hecto", 10**2,  "deca", 10,  "deci", 10**-1,  "centi", 10**-2,  "milli", 10**-3,  "micro", 10**-6,  "nano", 10**-9,  "pico", 10**-12,  "femto", 10**-15,  "atto", 10**-18,  "zepto", 10**-21,  "yocto", 10**-24,  "ronto", 10**-27,  "quecto", 10**-30, "Q", 10**30,  "R", 10**27,  "Y", 10**24,  "Z", 10**21,  "E", 10**18,  "P", 10**15,  "T", 10**12,  "G", 10**9,  "M", 10**6,  "k", 10**3,  "h", 10**2,  "da", 10,  "d", 10**-1,  "c", 10**-2,  "m", 10**-3,  "mu", 10**-6,  "μ", 10**-6, "n", 10**-9,  "p", 10**-12,  "f", 10**-15,  "a", 10**-18,  "z", 10**-21,  "y", 10**-24,  "r", 10**-27,  "q", 10**-30)
+	metricPrefixes := Map("quetta", 1e30,  "ronna", 1e27,  "yotta", 1e24,  "zetta", 1e21,  "exa", 1e18,  "peta", 1e15,  "tera", 1e12,  "giga", 1e9,  "mega", 1e6,  "kilo", 1e3,  "hecto", 1e2,  "deca", 10,  "deci", 1e-1,  "centi", 1e-2,  "milli", 1e-3,  "micro", 1e-6,  "nano", 1e-9,  "pico", 1e-12,  "femto", 1e-15,  "atto", 1e-18,  "zepto", 1e-21,  "yocto", 1e-24,  "ronto", 1e-27,  "quecto", 1e-30, "Q", 1e30,  "R", 1e27,  "Y", 1e24,  "Z", 1e21,  "E", 1e18,  "P", 1e15,  "T", 1e12,  "G", 1e9,  "M", 1e6,  "k", 1e3,  "h", 1e2,  "da", 10,  "d", 1e-1,  "c", 1e-2,  "m", 1e-3,  "mu", 1e-6,  "μ", 1e-6, "n", 1e-9,  "p", 1e-12,  "f", 1e-15,  "a", 1e-18,  "z", 1e-21,  "y", 1e-24,  "r", 1e-27,  "q", 1e-30)
 	
 	metricSymbols := Map("Q", "quetta",  "R", "ronna",  "Y", "yotta",  "Z", "zetta",  "E", "exa",  "P", "peta",  "T", "tera",  "G", "giga",  "M", "mega",  "k", "kilo",  "h", "hecto",  "da", "deca",  "d", "deci",  "c", "centi",  "m", "milli",  "mu", "micro",  "μ", "micro", "n", "nano",  "p", "pico",  "f", "femto",  "a", "atto",  "z", "zepto",  "y", "yocto",  "r", "ronto",  "q", "quecto")
 	
@@ -1842,7 +1882,7 @@ FormatUnit(&unit) {
 	unit2Matches := []
 	for dimension, units in dimensions {
 		for unit, spellings in units {
-			for spelling in spellings {
+			for spelling in spellings[1] {
 				if SubStr(unit1, -StrLen(spelling)) = spelling {
 					prefix := ""
 					if StrLen(unit1) > unitLen := StrLen(spelling) {
@@ -1901,8 +1941,8 @@ FormatUnit(&unit) {
 			newVal *= metricPrefixes[prefix]
 		}
 	}
-	newVal := Convert(newVal, conversions[unit1[1]][unit1[2]])
-	newVal := Convert(newVal, conversions[unit2[1]][unit2[2]], True)
+	newVal := Convert(newVal, dimensions[unit1[1]][unit1[2]][2])
+	newVal := Convert(newVal, dimensions[unit2[1]][unit2[2]][2], True)
 	if (prefix := unit2[3]) != "" {
 		if unit2[1] == "area" {
 			newVal /= metricPrefixes[prefix]**2
