@@ -829,7 +829,6 @@ endchar := "\"
 ::goldheart::💛
 ::goldenheart::💛
 ::purpleheart::💜
-::hearts::💚🤎💙🧡🤍🖤❤️💛💜
 ::realheart::🫀
 ::anatomicalheart::🫀
 ::flamingheart::❤️‍🔥
@@ -1052,6 +1051,30 @@ endchar := "\"
 ::-::–
 
 
+; Randomizes the solid colored hearts
+::hearts::{
+	hearts := ["💚", "🤎", "💙", "🧡", "🤍", "🖤", "❤️", "💛", "💜"]
+	newHearts := ""
+	while hearts.Length > 0 {
+		N := Random(1, hearts.Length)
+		newHearts .= hearts[N]
+		hearts.RemoveAt(N)
+	}
+	Send newHearts
+}
+
+; Randomizes even more hearts
+::hearts2::{
+	hearts := ["💚", "🤎", "💙", "🧡", "🤍", "🖤", "❤️", "💛", "💜", "💝", "💘", "💖", "💗", "💓", "💞", "💟", "❣", "💕", "🫀"]
+	newHearts := ""
+	while hearts.Length > 0 {
+		N := Random(1, hearts.Length)
+		newHearts .= hearts[N]
+		hearts.RemoveAt(N)
+	}
+	Send newHearts
+}
+
 
 ; Gathers user input and does some processing regarding it.  
 ; Did they type?  Paste?  Use from the clipboard?  
@@ -1065,10 +1088,10 @@ GatherInput(&text, &backspaceCount) {
 	text.Wait()
 	Suspend
 	; Just give up if they took too long or typed too much
-	if text.EndReason == "Max" or text.EndReason == "Timeout" {
+	If text.EndReason == "Max" Or text.EndReason == "Timeout" {
 		text := ""
 		backspaceCount := 0
-		return
+		Return
 	}
 	text := text.Input
 	; Handles pasting
@@ -1076,7 +1099,7 @@ GatherInput(&text, &backspaceCount) {
 	text := StrReplace(text, "`r", "  ")
 	text := StrReplace(text, "`n", "  ")
 	backspaceCount := StrLen(text) + 1
-	if StrLen(text) == 0 { ; If they didn't type anything, take the text from the clipboard
+	If StrLen(text) == 0 { ; If they didn't type anything, take the text from the clipboard
 		text := A_Clipboard
 	}
 }
@@ -1162,20 +1185,20 @@ GatherInput(&text, &backspaceCount) {
 	nextUpper := False
 	out := ""
 	Loop Parse text {
-		if A_LoopField == "⠠" {
+		If A_LoopField == "⠠" {
 			nextUpper := True
-			continue
+			Continue
 		}
-		if A_LoopField == "⠼" {
+		If A_LoopField == "⠼" {
 			nextNumber := True
-			continue
+			Continue
 		}
 		nextChar := charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
-		if nextUpper {
+		If nextUpper {
 			nextChar := StrUpper(nextChar)
 			nextUpper := False
 		}
-		if nextNumber {
+		If nextNumber {
 			nextChar := numMap.Has(nextChar) ? numMap[nextChar] : nextChar
 			nextNumber := False
 		}
@@ -1198,7 +1221,7 @@ GatherInput(&text, &backspaceCount) {
 	
 	out := ""
 	Loop Parse text {
-		if IsUpper(A_LoopField) {
+		If IsUpper(A_LoopField) {
 			out .= "⠠"
 		}
 		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
@@ -1214,8 +1237,8 @@ GatherInput(&text, &backspaceCount) {
 	text := StrReplace(text, " ", " ")
 	Loop {
 		text := StrReplace(text, "   ", "  ",, &count)
-		if count == 0 {
-			break
+		If count == 0 {
+			Break
 		}
 	}
 	
@@ -1540,17 +1563,17 @@ GatherInput(&text, &backspaceCount) {
 	out := ""
 	Loop Parse text {
 		lowercase := Random(0, 1)
-		if lowercase < 0.5 + bias {
-			if bias > 0 {
+		If lowercase < 0.5 + bias {
+			If bias > 0 {
 				bias := -0.1
-			} else {
+			} Else {
 				bias -= 0.25
 			}
 			out .= StrLower(A_LoopField)
-		} else {
-			if bias < 0 {
+		} Else {
+			If bias < 0 {
 				bias := 0.1
-			} else {
+			} Else {
 				bias += 0.25
 			}
 			out .= StrUpper(A_LoopField)
@@ -1576,17 +1599,7 @@ GatherInput(&text, &backspaceCount) {
 
 
 
-; Conversions
-
-GatherNum(&val, &backspaceCount, &HonorSigFigs) {
-	GatherInput(&val, &backspaceCount)
-	HonorSigFigs := SubStr(val, 1, 1) == "!" ? (val := SubStr(val, 2), True) : False
-	FormatVal(&val)
-	if val == "NaN" {
-		Send "{Backspace}"
-		return True
-	}
-}
+; Mathy features
 
 ; Formats user input to make sure it's a
 ; number, remove leading and trailing
@@ -1595,91 +1608,99 @@ GatherNum(&val, &backspaceCount, &HonorSigFigs) {
 ; floating point precision errors messing up 
 ; significant figure calculations
 FormatVal(&val) {
-	if !IsNumber(val) {
+	If !IsNumber(val) {
 		val := calc(val)
-		if !IsNumber(val) {
+		If !IsNumber(val) {
 			val := "NaN"
-			return
+			Return
 		}
 	}
 	; Trim leading and trailing whitespace
 	val := Trim(val)
 	; Trim leading 0s
 	; Account for leading - in negatives
-	val := StrSplit(val, "-")
-	if val.length == 1 { ; positive
-		val := LTrim(val[1], "0")
-	} else  { ; negative
-		val := "-" . LTrim(val[2], "0")
-	}
-	if val == "" or val == "-" or val == "." {
+	val := val < 0 ? "-" . LTrim(SubStr(val, 2), "0") : LTrim(val, "0")
+	If val == "" Or val == "-" Or val == "." {
 		val := "0"
 	}
 	; Intentionally allows a trailing decimal to indicate
 	; significance of trailing 0s in an integer value
-	return
+	Return
 }
 
 ; Determines the number of significant figures in val
 DetermineSigFigs(val, &SigFigs) {
 	; Ensures val is a well formatted number with nothing extra
 	FormatVal(&val)
+	; Remove any scientific notation, not relevant here
+	If i := InStr(val, "e") {
+		val := SubStr(val, 1, i-1)
+	}
 	; Remove any negatives, not relevant here
-	if InStr(val, "-") {
+	If InStr(val, "-") {
 		val := SubStr(val, 2)
 	}
 	; Number is only an integer
-	if !InStr(val, ".") {
-		if val == 0 { ; Entire number is 0
+	If !InStr(val, ".") {
+		If val == 0 { ; Entire number is 0
 			SigFigs := 1
-			return
+			Return
 		}
 		; Remove insignificant trailing 0s
 		val := RTrim(val, "0")
 		SigFigs := StrLen(val)
-		return
+		Return
 	}
 	; Number has a decimal point
 	SigFigs := 0
 	; Split into integer and decimal parts
 	splitVal := StrSplit(val, ".")
-	if StrLen(splitVal[1]) > 0 and splitVal[1] > 0 {
+	If StrLen(splitVal[1]) > 0 And splitVal[1] > 0 {
 		; If integer part isn't 0, it's all significant
 		SigFigs += StrLen(splitVal[1])
 	}
-	if SigFigs > 0 {
+	If SigFigs > 0 {
 		; If integer part isn't 0, all of the decimal part is significant
 		SigFigs += StrLen(splitVal[2])
-	} else {
+	} Else {
 		; If integer part is 0, only parts of decimal part from first nonzero entry is significant, unless it's all 0s
 		trimmedVal2 := LTrim(splitVal[2], "0")
-		if trimmedVal2 == "" {
+		If trimmedVal2 == "" {
 			SigFigs += StrLen(splitVal[2])
-		} else {
+		} Else {
 			SigFigs += StrLen(trimmedVal2)
 		}
 	}
 }
 
+; Formats val to have SigFig significant figures
 FormatSigFigs(&val, SigFigs) {
 	DetermineSigFigs(val, &valSigFigs)
-	if valSigFigs == SigFigs { ; Done!  
-		return
-	} else if valSigFigs <= SigFigs { ; Just add on 0s until it's good
-		if !InStr(val, ".") { ; Add a decimal if it's not already there
+	; Handle scientific notation
+	suffix := ""
+	If i := InStr(val, "e") {
+		suffix := SubStr(val, i)
+		val := SubStr(val, 1, i-1)
+	}
+	If valSigFigs == SigFigs { ; Done!
+		val .= suffix
+		Return
+	} Else If valSigFigs <= SigFigs { ; Just add on 0s until it's good
+		If !InStr(val, ".") { ; Add a decimal if it's not already there
 			val .= "."
 		}
-		while valSigFigs <= SigFigs {
+		While valSigFigs <= SigFigs {
 			val .= "0"
 			valSigFigs += 1
 		}
-		return
-	} else { ; Too many sig figs - gotta cut back
+		val .= suffix
+		Return
+	} Else { ; Too many sig figs - gotta cut back
 		; Find index of first sig fig
 		firstSigIndex := 1
 		Loop Parse val {
-			if (IsNumber(A_LoopField) and A_LoopField != "0") {
-				break
+			If (IsNumber(A_LoopField) And A_LoopField != "0") {
+				Break
 			}
 			firstSigIndex += 1
 		}
@@ -1687,127 +1708,145 @@ FormatSigFigs(&val, SigFigs) {
 		rightIndex := 1
 		sigFigsSeen := 1
 		Loop Parse val {
-			if rightIndex <= firstSigIndex {
+			If rightIndex <= firstSigIndex {
 				rightIndex += 1
-				continue
+				Continue
 			}
-			if sigFigsSeen == SigFigs {
-				if IsNumber(A_LoopField) {
-					break
+			If sigFigsSeen == SigFigs {
+				If IsNumber(A_LoopField) {
+					Break
 				}
 				rightIndex += 1
-				continue
+				Continue
 			}
-			if IsNumber(A_LoopField) {
+			If IsNumber(A_LoopField) {
 				sigFigsSeen += 1
 			}
 			rightIndex += 1
 		}
 		; Index of decimal point
 		decimalIndex := InStr(val, ".")
-		if decimalIndex == 0 { ; Ensure all numbers have a decimal to make logic simpler
+		If decimalIndex == 0 { ; Ensure all numbers have a decimal to make logic simpler
 			val .= "."
 			decimalIndex := StrLen(val)
 		}
 		; roundPos picks which digit to round on
 		; endPos is to chop off floating point precision errors in the end
-		if rightIndex > decimalIndex { ; Rounding right of the decimal
+		If rightIndex > decimalIndex { ; Rounding right of the decimal
 			roundPos := rightIndex - decimalIndex - 1
 			endPos := rightIndex - 1
-		} else { ; Rounding left of the decimal
+		} Else { ; Rounding left of the decimal
 			roundPos := rightIndex - decimalIndex
 			endPos := decimalIndex - 1
 		}
 		val := Round(val, roundPos)
-		if roundPos == 0 and SubStr(val, -1, 1) == 0 {
+		If roundPos == 0 And SubStr(val, -1, 1) == 0 {
 			; Rounded to nearest integer and the ones place is 0
 			; Show the decimal to indicate the 0 is significant
 			val .= "."
 		}
 		val := SubStr(val, 1, endPos)
+		val .= suffix
 	}
 }
 
+; More of a "less dumb round" - if rounding sends the value to 0 then it
+; rounds it to the same number of digits in scientific notation instead
+SmartRound(val, digits) {
+	rounded := Round(val, digits)
+	If rounded != 0 {
+		Return rounded
+	}
+	val := String(Format("{:e}", val))
+	i := InStr(val, "e")
+	suffix := SubStr(val, i)
+	val := SubStr(val, 1, i-1)
+	Return Round(val, digits) . suffix
+}
+
 ; Generic calculation function, alternates between multiplying and adding values to val
+; If reverse is True then it performs the inverse calculation instead
 Convert(val, params, reverse := False) {
-	mult := (reverse and Mod(params.length, 2) == 0) ? False : True
+	mult := (reverse And Mod(params.Length, 2) == 0) ? False : True
 	index := reverse ? -1 : 1
 	diff := reverse ? -1 : 1
-	end := reverse ? -params.length - 1 : params.length + 1
-	while index != end {
-		if mult {
+	end := reverse ? -params.Length - 1 : params.Length + 1
+	While index != end {
+		If mult {
 			val := reverse ? val / params[index] : val * params[index]
-		} else {
+		} Else {
 			val := reverse ? val - params[index] : val + params[index]
 		}
 		mult := !mult
 		index += diff
 	}
-	return val
+	Return val
 }
 
-
-
-; Conversions start here
-
+; Does some cleaning up of user input for ::convert:: below, to match unit alias lists
+; Main point was to drastically reduce how many distinct aliases had to be listed
 FormatUnit(&unit) {
-	; Below StrReplace calls do this - might swap them at some point to do speed comparisons if necessary
-	; str := StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(unit, "^"), " "), "uared"), "uare"), "sq", "2"), "bic"), "bed"), "be"), "cu", "3")
-	unit := StrReplace(unit, "^")
-	unit := StrReplace(unit, " ")
-	unit := StrReplace(unit, "uared")
-	unit := StrReplace(unit, "uare")
-	unit := StrReplace(unit, "sq", "2")
-	unit := StrReplace(unit, "bic")
-	unit := StrReplace(unit, "bed")
-	unit := StrReplace(unit, "be")
-	unit := StrReplace(unit, "cu", "3")
-	if IsNumber(num := SubStr(unit, 1, 1)) {
-		unit := SubStr(unit, 2) . num
-		if unit = "p3" {
+	unit := StrReplace(unit, "^") ; m^3 -> m3
+	unit := StrReplace(unit, " ") ; fluid ounce -> fluidounce
+	unit := StrReplace(unit, "uared") ; metersquared -> metersq
+	unit := StrReplace(unit, "uare") ; squaremeter -> sqmeter
+	unit := StrReplace(unit, "sq", "2") ; sqmeter -> 2meter
+	unit := StrReplace(unit, "bic") ; cubicmeter -> cumeter
+	unit := StrReplace(unit, "bed") ; metercubed -> metercu
+	unit := StrReplace(unit, "be") ; cubemeter -> cumeters
+	unit := StrReplace(unit, "cu", "3") ; cumeter -> 3meters
+	If IsNumber(num := SubStr(unit, 1, 1)) {
+		unit := SubStr(unit, 2) . num ; 3meter -> meters3
+		If unit = "p3" { ; cup -> 3p -> cup
 			unit := "cup"
 		}
 	}
-	if endsInNumber := IsNumber(endingNum := SubStr(unit, -1, 1)) {
-		unit := SubStr(unit, 1, -1)
+	If endsInNumber := IsNumber(endingNum := SubStr(unit, -1, 1)) {
+		unit := SubStr(unit, 1, -1) ; meters3 -> meters
 	}
-	if SubStr(unit, -1, 1) = "s" and StrLen(unit) != 1 {
-		unit := SubStr(unit, 1, -1)
+	If SubStr(unit, -1, 1) = "s" And StrLen(unit) != 1 {
+		unit := SubStr(unit, 1, -1) ; meters -> meter
 	}
-	if endsInNumber {
-		unit .= endingNum
+	If endsInNumber {
+		unit .= endingNum ; meter -> meter3
 	}
 }
 
+; Converts between units.  Format:  `convert\valueToConvert, startingUnit, destinationUnit\
 ; Temperature: celsius, fahrenheit, kelvin, rankine
-; Length: meter, inch, foot, yard, mile, lightyear, parsec
+; Length: meter, inch, foot, yard, fathom, furlong, mile, nautical mile, astronomical unit, lightyear, parsec
 ; Area: meter², inch², foot², yard², mile², acre, hectare
-; Volume: liter, meter³, teaspoon, tablespoon, cup, pints, quarts, gallon, inch³, foot³, yard³, mile³
+; Volume: liter, meter³, teaspoon, tablespoon, fluid ounce, cup, pint, quart, gallon, inch³, foot³, yard³, mile³
 ; Mass: gram, ounce, pound, stone, ton, metric ton
-; Time: day, second, minute, hour, week, fortnight, year, decade, score, century, millennium
+; Time: second, minute, hour, day, week, fortnight, year, decade, score, century, millennium
 ; Angular measure: degree, radian, gradian, arcminute, arcsecond
 ::convert:: {
 	GatherInput(&input, &backspaceCount)
+	; Backspace input
 	Send "{Backspace " . backspaceCount . "}"
-	input := StrSplit(input, ",", " ")
-	if input.length != 3 {
+	; Break up input by spaces or commas, depending on whether or not commas are present
+	input := InStr(input, ",") ? StrSplit(input, ",", " ") : StrSplit(input, " ")
+	; All valid input has 3 parts:  value, unit1, and unit2
+	If input.Length != 3 {
 		Send "Incorrect format"
-		return
+		Return
 	}
 	val := input[1]
 	unit1 := input[2]
 	unit2 := input[3]
+	; Precede value with ! to maintain significant figure count
 	HonorSigFigs := SubStr(val, 1, 1) == "!" ? (val := SubStr(val, 2), True) : False
+	; Postcede value with ! to skip writing the unit after the result
 	NoSuffix := SubStr(val, -1, 1) == "!" ? (val := SubStr(val, 1, -1), True) : False
 	FormatVal(&val)
-	if val == "NaN" {
+	If val == "NaN" {
 		Send "NaN"
-		return True
+		Return
 	}
-	
-	FormatUnit(&unit1)
-	FormatUnit(&unit2)
-	
+	; Inner map's keys double as unit name and as the display unit text when sending results
+	; Keys refer to list of lists.  First list is acceptable aliases for that unit (after input parsing)
+	; Second list is parameters instructing on how to convert that unit to the base unit for its dimension
+	; Base unit for each dimension is first listed
 	dimensions := Map("temperature", Map(
 						"℃", [["c", "celsiu"], []]
 						, "℉", [["f", "fahrenheit"], [1, -32, 5/9]]
@@ -1832,7 +1871,7 @@ FormatUnit(&unit) {
 						, " yd²", [["y2", "yd2", "yard2"], [0.83612736]]
 						, " miles²", [["mi2", "mile2"], [2589988.110336]]
 						, " acres", [["ac", "acre"], [4046.8564224]]
-						, " hectares", [["ha", "hectare"], [10000]])
+						, " hectares", [["ha", "hectare"], [10000]] )
 					, "volume", Map(
 						" liters", [["l", "liter"], []]
 						, " m³", [["m3", "meter3", "metre3"], [1000]]
@@ -1846,14 +1885,14 @@ FormatUnit(&unit) {
 						, " in³", [["in3", "inch3", "inche3"], [16.387064/1000]]
 						, " ft³", [["ft3", "foot3", "feet3"], [28.316846592]]
 						, " yd³", [["y3", "yd3", "yard3"], [764.554857984]]
-						, " miles³", [["mi3", "mile3"], [5451776000*764.554857984]])
+						, " miles³", [["mi3", "mile3"], [5451776000*764.554857984]] )
 					, "mass", Map(
 						" grams", [["g", "gram"], []]
 						, " oz", [["oz", "ounce"], [28.349523125]]
 						, " lbs", [["lb", "pound"], [453.59237]]
 						, " stones", [["st", "stone", "s"], [6350.29318]]
 						, " tons", [["ton"], [907184.74]]
-						, " metric tons", [["mt", "metricton"], [1000000]])
+						, " metric tons", [["mt", "metricton"], [1000000]] )
 					, "time", Map(
 						" seconds", [["s", "sec", "second"], []]
 						, " minutes", [["m", "min", "minute"], [60]]
@@ -1865,40 +1904,60 @@ FormatUnit(&unit) {
 						, " decades", [["dec", "decade"], [315576000]]
 						, " scores", [["sc", "score"], [631152000]]
 						, " centuries", [["c", "century", "centurie"], [3155760000]]
-						, " millenniums", [["mil", "mill", "millennium", "millennia"], [31557600000]])
+						, " millenniums", [["mil", "mill", "millennium", "millennia"], [31557600000]] )
 					, "angular measure", Map(
 						"°", [["d", "deg", "degree"], []]
 						, " radians", [["r", "rad", "radian"], [180/3.14159265358979]]
 						, "gradians", [["g", "grad", "gradian"], [.9]]
 						, "'", [["am", "arcm", "arcmin", "arcminute"], [1/60]]
-						, '"', [["as", "arcs", "arcsec", "arcsecond"], [1/3600]]))
-
+						, '"', [["as", "arcs", "arcsec", "arcsecond"], [1/3600]] ) )
+	; SI prefixes and their associated factors
 	metricPrefixes := Map("quetta", 1e30,  "ronna", 1e27,  "yotta", 1e24,  "zetta", 1e21,  "exa", 1e18,  "peta", 1e15,  "tera", 1e12,  "giga", 1e9,  "mega", 1e6,  "kilo", 1e3,  "hecto", 1e2,  "deca", 10,  "deci", 1e-1,  "centi", 1e-2,  "milli", 1e-3,  "micro", 1e-6,  "nano", 1e-9,  "pico", 1e-12,  "femto", 1e-15,  "atto", 1e-18,  "zepto", 1e-21,  "yocto", 1e-24,  "ronto", 1e-27,  "quecto", 1e-30, "Q", 1e30,  "R", 1e27,  "Y", 1e24,  "Z", 1e21,  "E", 1e18,  "P", 1e15,  "T", 1e12,  "G", 1e9,  "M", 1e6,  "k", 1e3,  "h", 1e2,  "da", 10,  "d", 1e-1,  "c", 1e-2,  "m", 1e-3,  "mu", 1e-6,  "μ", 1e-6, "n", 1e-9,  "p", 1e-12,  "f", 1e-15,  "a", 1e-18,  "z", 1e-21,  "y", 1e-24,  "r", 1e-27,  "q", 1e-30)
 	
+	; SI symbols and the full prefix names they shorten - results always display the long name
 	metricSymbols := Map("Q", "quetta",  "R", "ronna",  "Y", "yotta",  "Z", "zetta",  "E", "exa",  "P", "peta",  "T", "tera",  "G", "giga",  "M", "mega",  "k", "kilo",  "h", "hecto",  "da", "deca",  "d", "deci",  "c", "centi",  "m", "milli",  "mu", "micro",  "μ", "micro", "n", "nano",  "p", "pico",  "f", "femto",  "a", "atto",  "z", "zepto",  "y", "yocto",  "r", "ronto",  "q", "quecto")
 	
+	; Some parsing to simplify user input and fit the formats allowed above
+	FormatUnit(&unit1)
+	FormatUnit(&unit2)
 	; At this point user input will either be a valid match to a unit in the supported units list, perhaps with an SI prefix, or it will be invalid.  
 	unit1Matches := []
 	unit2Matches := []
-	for dimension, units in dimensions {
-		for unit, spellings in units {
-			for spelling in spellings[1] {
-				if SubStr(unit1, -StrLen(spelling)) = spelling {
+	For dimension, units In dimensions {
+		For unit, aliases In units {
+			For alias In aliases[1] {
+				If SubStr(unit1, -StrLen(alias)) = alias {
+					; The input ends in a valid unit alias - if that's the full input, or if an SI prefix completes the full input, accept it as a match
 					prefix := ""
-					if StrLen(unit1) > unitLen := StrLen(spelling) {
+					If StrLen(unit1) > unitLen := StrLen(alias) {
 						prefix := SubStr(unit1, 1, -unitLen)
-						if !metricPrefixes.has(prefix) {
-							continue
+						; Some prefixe symbols are case-sensitive so be careful.  First see if there's an exact case match, use that if there is
+						; Then see if there's a lowercase match - will allow user to type for example "Kilo" for "kilo"
+						; Lastly check for an uppercase match - for example if they typed gm instead of Gm for Gigameter
+						If !metricPrefixes.Has(prefix) {
+							If metricPrefixes.Has(StrLower(prefix)) {
+								prefix := StrLower(prefix)
+							} Else If metricPrefixes.Has(StrUpper(prefix)) {
+								prefix := StrUpper(prefix)
+							} Else {
+								Continue
+							}
 						}
 					}
 					unit1Matches.push([dimension, unit, prefix])
 				}
-				if SubStr(unit2, -StrLen(spelling)) = spelling {
+				If SubStr(unit2, -StrLen(alias)) = alias {
 					prefix := ""
-					if StrLen(unit2) > unitLen := StrLen(spelling) {
+					If StrLen(unit2) > unitLen := StrLen(alias) {
 						prefix := SubStr(unit2, 1, -unitLen)
-						if !metricPrefixes.has(prefix) {
-							continue
+						If !metricPrefixes.Has(prefix) {
+							If metricPrefixes.Has(StrLower(prefix)) {
+								prefix := StrLower(prefix)
+							} Else If metricPrefixes.Has(StrUpper(prefix)) {
+								prefix := StrUpper(prefix)
+							} Else {
+								Continue
+							}
 						}
 					}
 					unit2Matches.push([dimension, unit, prefix])
@@ -1906,72 +1965,79 @@ FormatUnit(&unit) {
 			}
 		}
 	}
-	if unit1Matches.Length == 0 {
+	; No match found for unit1, unit2
+	If unit1Matches.Length == 0 {
 		Send "Unknown unit: " . unit1
-		return
-	} else if unit2Matches.Length == 0 {
+		Return
+	} Else If unit2Matches.Length == 0 {
 		Send "Unknown unit: " . unit2
-		return
+		Return
 	}
 	matchFound := False
-	for match1 in unit1Matches {
-		for match2 in unit2Matches {
-			if match1[1] == match2[1] {
+	For match1 In unit1Matches {
+		For match2 In unit2Matches {
+			If match1[1] == match2[1] {
+				; The matches are the same dimension - success
 				unit1 := match1
 				unit2 := match2
 				matchFound := True
-				break
+				Break
 			}
 		}
-		if matchFound {
-			break
+		If matchFound {
+			Break
 		}
 	}
-	if !matchFound {
+	If !matchFound {
 		Send "Dimensional mismatch"
-		return
+		Return
 	}
+	; Using a new value because we may need to reference the original if user is respecting sig figs
 	newVal := val
-	if (prefix := unit1[3]) != "" {
-		if unit1[1] == "area" {
+	; If we have an SI prefix, use it to convert val to the base unit first - careful with area and volume units
+	If (prefix := unit1[3]) != "" {
+		If unit1[1] == "area" {
 			newVal *= metricPrefixes[prefix]**2
-		} else if unit1[1] == "volume" {
+		} Else If unit1[1] == "volume" {
 			newVal *= metricPrefixes[prefix]**3
-		} else {
+		} Else {
 			newVal *= metricPrefixes[prefix]
 		}
 	}
+	; Convert val to the base unit for its dimension
 	newVal := Convert(newVal, dimensions[unit1[1]][unit1[2]][2])
+	; Now convert it from the base unit to the destination unit
 	newVal := Convert(newVal, dimensions[unit2[1]][unit2[2]][2], True)
-	if (prefix := unit2[3]) != "" {
-		if unit2[1] == "area" {
+	; If the destination unit also has an SI prefix, then convert from the base unit to it
+	If (prefix := unit2[3]) != "" {
+		If unit2[1] == "area" {
 			newVal /= metricPrefixes[prefix]**2
-		} else if unit2[1] == "volume" {
+		} Else If unit2[1] == "volume" {
 			newVal /= metricPrefixes[prefix]**3
-		} else {
+		} Else {
 			newVal /= metricPrefixes[prefix]
 		}
 	}
-	if HonorSigFigs {
+	If HonorSigFigs {
 		DetermineSigFigs(val, &SigFigs)
 		FormatSigFigs(&newVal, SigFigs)
-	} else {
-		newVal := Round(newVal, 2)
-		if Integer(newVal) == newVal {
+	} Else {
+		newVal := SmartRound(newVal, 2)
+		If Integer(newVal) == newVal {
 			newVal := Integer(newVal)
 		}
 	}
-	if (prefix := unit2[3]) != "" {
-		if metricSymbols.has(prefix) {
+	If (prefix := unit2[3]) != "" {
+		If metricSymbols.Has(prefix) {
 			prefix := metricSymbols[prefix]
 		}
-		if SubStr(unit2[2], 1, 1) == " " {
+		If SubStr(unit2[2], 1, 1) == " " {
 			suffix := " " . prefix . SubStr(unit2[2], 2)
 		}
-	} else {
+	} Else {
 		suffix := unit2[2]
 	}
-	if NoSuffix {
+	If NoSuffix {
 		suffix := ""
 	}
 	Send newVal . suffix
@@ -1981,7 +2047,7 @@ FormatUnit(&unit) {
 
 ; Below code taken from this reddit comment:
 ; https://old.reddit.com/r/AutoHotkey/comments/129491b/how_to_force_ahk_to_evaluate_a_string_as_an/jepkhfb/
-; Then ported to authotkey v2 and modified to avoid unintended concatenations and better obey order of operations
+; Then ported to autohotkey v2 and modified to fix bugs and expand capability
 ; Evaluates a string
 ; Operators
 ;   Parentheses     ( ... )
@@ -1992,59 +2058,82 @@ FormatUnit(&unit) {
 ;   Addition        +
 ;   Subtraction     -
 ; Multiplication/Floor division/Divison are on the same level of order of operations, as are Addition/Subtraction
-calc(str, first:=1) {
+calc(str, first := True) {
     Static rgx := {para :"(.*?)\(([\d|\+|\-|\*|\/|\.]*?)\)(.*?)$"
                   ,num1 :"(.*?)(-?\d+(?:\.\d+)?)"
                   ,num2 :"(-?\d+(?:\.\d+)?)(.*?)"}
 
-    if first {                                                      ; Only do during first time run
+    If first {                                                      ; Only do during first time run
 		str := StrReplace(str, "pi", "3.141592653589793238")
-		str := StrReplace(str, "e", "2.718281828")
+		str := RegExReplace(str, "[Ee](?!xp)(?!il)", "2.718281828459045235")
 		str := RegExReplace(str, "(\d)\(", "$1*(")                  ; Turn 3(4+5) into 3*(4+5) to prevent concatenation
 		str := RegExReplace(str, "\)(\d)", ")*$1")                  ; Turn (4+5)3 into (4+5)*3 for same reason
 		str := RegExReplace(str, "\)\(", ")*(")                     ; Turn (3+4)(5+6) into (3+4)*(5+6) for same reason
         StrReplace(str, "(", "(", 0, &pOpen)                        ; Count open parens
         StrReplace(str, ")", ")", 0, &pClose)                       ; Count close parens
-        if (pOpen != pClose) {                                      ; Error if they don't match
-            return "Error. Open/close parentheses mismatch."
+        If (pOpen != pClose) {                                      ; Error if they don't match
+            Return "Error. Open/close parentheses mismatch."
 		}
         str := StrReplace(str, " ")                                 ; Remove all spaces
-        while RegExMatch(str, rgx.para, &m) {                 		; If parens still exist
+        While RegExMatch(str, rgx.para, &m) {                 		; If parens still exist
+			m.2 := calc(m.2, False)
+			Switch {
+				Case SubStr(m.1, -3) = "abs": m.1 := SubStr(m.1, 1, -3), m.2 := Abs(m.2)
+				Case SubStr(m.1, -4) = "ceil": m.1 := SubStr(m.1, 1, -4), m.2 := Ceil(m.2)
+				Case SubStr(m.1, -3) = "exp": m.1 := SubStr(m.1, 1, -3), m.2 := Exp(m.2)
+				Case SubStr(m.1, -5) = "floor": m.1 := SubStr(m.1, 1, -5), m.2 := Floor(m.2)
+				Case SubStr(m.1, -3) = "log": m.1 := SubStr(m.1, 1, -3), m.2 := Log(m.2)
+				Case SubStr(m.1, -2) = "ln": m.1 := SubStr(m.1, 1, -2), m.2 := Ln(m.2)
+				Case SubStr(m.1, -4) = "sqrt": m.1 := SubStr(m.1, 1, -4), m.2 := Sqrt(m.2)
+				Case SubStr(m.1, -4) = "asin": m.1 := SubStr(m.1, 1, -4), m.2 := Asin(m.2)
+				Case SubStr(m.1, -4) = "acos": m.1 := SubStr(m.1, 1, -4), m.2 := Acos(m.2)
+				Case SubStr(m.1, -4) = "atan": m.1 := SubStr(m.1, 1, -4), m.2 := Atan(m.2)
+				Case SubStr(m.1, -3) = "sin": m.1 := SubStr(m.1, 1, -3), m.2 := Sin(m.2)
+				Case SubStr(m.1, -3) = "cos": m.1 := SubStr(m.1, 1, -3), m.2 := Cos(m.2)
+				Case SubStr(m.1, -3) = "tan": m.1 := SubStr(m.1, 1, -3), m.2 := Tan(m.2)
+			}
             str := m.1 . calc(m.2, 0) . m.3                         ; Recursively eliminate them
 		}
     }
-	while RegExMatch(str, rgx.num1 . "(\^)" . rgx.num2 . "$", &m) { ; While "number sign number" exists
+	While RegExMatch(str, rgx.num1 . "(\^)" . rgx.num2 . "$", &m) { ; While "number sign number" exists
 		str := m.1 . (m.2 ** m.4) . m.5
 	}
-	while RegExMatch(str, rgx.num1 . "([*/]|//)" . rgx.num2 . "$", &m) {
-		switch m.3 {                                                ; Check sign and do appropriate operation
-			case "*"  : str := m.1 . (m.2 * m.4) .  m.5
-			case "//" : str := m.1 . (m.2 // m.4) . m.5
-			case "/"  : str := m.1 . (m.2 / m.4) .  m.5
+	While RegExMatch(str, rgx.num1 . "([*/]|//)" . rgx.num2 . "$", &m) {
+		Switch m.3 {                                                ; Check sign and do appropriate operation
+			Case "*"  : str := m.1 . (m.2 * m.4) .  m.5
+			Case "//" : str := m.1 . (m.2 // m.4) . m.5
+			Case "/"  : str := m.1 . (m.2 / m.4) .  m.5
 		}
 	}
-	while RegExMatch(str, rgx.num1 . "([+-])" . rgx.num2 . "$", &m) {
-		switch m.3 {
-			case "+"  : str := m.1 . (m.2 + m.4) .  m.5
-			case "-"  : str := m.1 . (m.2 - m.4) .  m.5
+	While RegExMatch(str, rgx.num1 . "([+-])" . rgx.num2 . "$", &m) {
+		Switch m.3 {
+			Case "+"  : str := m.1 . (m.2 + m.4) .  m.5
+			Case "-"  : str := m.1 . (m.2 - m.4) .  m.5
 		}
 	}
 
-    while InStr(str, ".") && (SubStr(str, -1) = 0) {                ; If decimal and ends in 0
+    While InStr(str, ".") && (SubStr(str, -1) = 0) {                ; If decimal and ends in 0
         str := SubStr(str, 1, -1)                                   ; Remove the zero
 	}
-    return RTrim(str, ".")                                          ; Return after removing trailing decimal
+    Return RTrim(str, ".")                                          ; Return after removing trailing decimal
 }
 
 ::calc:: {
 	GatherInput(&text, &backspaceCount)
-	if i := InStr(text, ",") {
-		roundNum := SubStr(text, 1, i-1)
-		text := SubStr(text, i+1)
+	If i := InStr(text, ",") {
+		roundNum := SubStr(text, i+1)
+		text := SubStr(text, 1, i-1)
 	}
-	out := calc(text)
-	if i {
-		out := round(out, roundNum)
+	out := ""
+	If SubStr(text, -1, 1) == "!" {
+		text := SubStr(text, 1, -1)
+		out .= text . " = "
+	}
+	result := calc(text)
+	If i {
+		out .= Round(result, roundNum)
+	} Else {
+		out .= result
 	}
 	Send "{Backspace " . backspaceCount . "}{Raw}" . out
 }
