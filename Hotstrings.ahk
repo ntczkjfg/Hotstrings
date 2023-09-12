@@ -2066,6 +2066,7 @@ calc(str, first := True) {
     If first {                                                      ; Only do during first time run
 		str := StrReplace(str, "pi", "3.141592653589793238")
 		str := RegExReplace(str, "[Ee](?!xp)(?!il)", "2.718281828459045235")
+		str := RegExReplace(str, "(\d)([a-zA-Z])", "$1*$2")
 		str := RegExReplace(str, "(\d)\(", "$1*(")                  ; Turn 3(4+5) into 3*(4+5) to prevent concatenation
 		str := RegExReplace(str, "\)(\d)", ")*$1")                  ; Turn (4+5)3 into (4+5)*3 for same reason
 		str := RegExReplace(str, "\)\(", ")*(")                     ; Turn (3+4)(5+6) into (3+4)*(5+6) for same reason
