@@ -2114,7 +2114,7 @@ calc(str, first := True) {
 			Case "-"  : str := m.1 . (m.2 - m.4) .  m.5
 		}
 	}
-
+	str := Round(str, 15)                                           ; Only has about this much floating point precision anyways
     While InStr(str, ".") && (SubStr(str, -1) = 0) {                ; If decimal and ends in 0
         str := SubStr(str, 1, -1)                                   ; Remove the zero
 	}
