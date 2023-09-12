@@ -1996,9 +1996,9 @@ FormatUnit(&unit) {
 	newVal := val
 	; If we have an SI prefix, use it to convert val to the base unit first - careful with area and volume units
 	If (prefix := unit1[3]) != "" {
-		If unit1[1] == "area" {
+		If SubStr(unit1[2], -1, 1) == "2" {
 			newVal *= metricPrefixes[prefix]**2
-		} Else If unit1[1] == "volume" {
+		} Else If SubStr(unit1[2], -1, 1) == "3" {
 			newVal *= metricPrefixes[prefix]**3
 		} Else {
 			newVal *= metricPrefixes[prefix]
@@ -2010,9 +2010,9 @@ FormatUnit(&unit) {
 	newVal := Convert(newVal, dimensions[unit2[1]][unit2[2]][2], True)
 	; If the destination unit also has an SI prefix, then convert from the base unit to it
 	If (prefix := unit2[3]) != "" {
-		If unit2[1] == "area" {
+		If SubStr(unit2[2], -1, 1) == "2" {
 			newVal /= metricPrefixes[prefix]**2
-		} Else If unit2[1] == "volume" {
+		} Else If SubStr(unit2[2], -1, 1) == "3" {
 			newVal /= metricPrefixes[prefix]**3
 		} Else {
 			newVal /= metricPrefixes[prefix]
