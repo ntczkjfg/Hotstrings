@@ -2055,9 +2055,10 @@ FormatUnit(&unit) {
 ; Correctly follows the order of operations and understands implicit multiplication.  Allows pi and e as constants.  
 calc(str, first := True) {
 	; Detects numbers like 3, 3., 3.3, 3.3e-3, 3.33e3, 3.01e+4, 3e3, 3.e3, .3e3, .3, and all of those but negative
+	; Avoids catching a negative if it's really just subtraction, to avoid concatenation errors
     rgx := {para :"^(.*?)\(([\dN+*/.^-]*?)\)(.*?)$"
-            ,num1 :"^(.*?)(-?(?:-?\d+\.\d+[Ee][+-]?\d+|-?\.\d+[Ee][-+]?\d+|-?\d+e[-+]?\d+|-?\d+\.e[-+]?\d+|\d+\.\d+|\d+\.|\d+|\.\d+)N?)"
-            ,num2 :"(-?(?:-?\d+\.\d+[Ee][+-]?\d+|-?\.\d+[Ee][-+]?\d+|-?\d+e[-+]?\d+|-?\d+\.e[-+]?\d+|\d+\.\d+|\d+\.|\d+|\.\d+)N?)(.*?)$"}
+            ,num1 :"^(.*?)((?<![\d.])(?:-)?(?:-?\d+\.\d+[Ee][+-]?\d+|-?\.\d+[Ee][-+]?\d+|-?\d+e[-+]?\d+|-?\d+\.e[-+]?\d+|\d+\.\d+|\d+\.|\d+|\.\d+)N?)"
+            ,num2 :"((?<![\d.])(?:-)?(?:-?\d+\.\d+[Ee][+-]?\d+|-?\.\d+[Ee][-+]?\d+|-?\d+e[-+]?\d+|-?\d+\.e[-+]?\d+|\d+\.\d+|\d+\.|\d+|\.\d+)N?)(.*?)$"}
     If first {                                                      ; Only do during first time run
 		str := RegExReplace(str, "([\d.)])([a-df-zA-DF-Z]|e(?![-+]?\d+))", "$1*$2")  ; Letter dot or close paren followed by a letter is implied multiplication: 3sin -> 3*sin
 		str := RegExReplace(str, "([a-df-zA-DF-Z]|e(?!-?\d+))(\d|\.)", "$1*$2")      ; letter followed by digit or dot is implied multiplication: pi3 -> pi*3
@@ -2076,6 +2077,7 @@ calc(str, first := True) {
 		str := RegExReplace(str, "(\d)\(", "$1*(")                  ; Turn 3(4+5) into 3*(4+5) to prevent concatenation
 		str := RegExReplace(str, "\)(\d|\.)", ")*$1")               ; Turn (4+5)3 into (4+5)*3 for same reason
 		str := RegExReplace(str, "\)\(", ")*(")                     ; Turn (3+4)(5+6) into (3+4)*(5+6) for same reason
+		str := RegExReplace(str, "-\(", "-1*(")
         StrReplace(str, "(", "(", 0, &pOpen)                        ; Count open parens
         StrReplace(str, ")", ")", 0, &pClose)                       ; Count close parens
         If (pOpen != pClose) {                                      ; Error if they don't match
@@ -2088,6 +2090,12 @@ calc(str, first := True) {
 			}
 		}
         str := StrReplace(str, " ")                                 ; Remove all spaces
+		While InStr(str, "---") {                                   ; Handle manually because rest of code can't
+			str := StrReplace(str, "---", "-")
+		}
+		If SubStr(str, 1, 2) == "--" {                              ; Initial -- confuses the subtract function
+			str := SubStr(str, 3)
+		}
         While RegExMatch(str, rgx.para, &m) {                 		; If parens still exist
 			m.2 := calc(m.2, False)
 			func := SubStr(m.1, -4)
@@ -2122,7 +2130,7 @@ calc(str, first := True) {
 				; Later code is like 7 lines below this btw
 				m.2 := m.2 . "N"
 			}
-            str := m.1 . m.2 . m.3                                  ; Recursively eliminate them
+            str := m.1 . m.2 . m.3
 		}
     }
 	While RegExMatch(str, rgx.num1 . "(\^)" . rgx.num2, &m) { ; While "number sign number" exists
@@ -2158,7 +2166,9 @@ calc(str, first := True) {
 			Case "-"  : str := m.1 . (m.2 - m.4) .  m.5
 		}
 	}
-	str := Round(str, 10)                                           ; Because results like 10.800000000000001
+	If first {
+		str := Round(str, 10)                                       ; Because results like 10.800000000000001
+	}
 	if str == 0 {
 		str := 0                                                    ; Weird edge case sometimes gave -0
 	}
@@ -2231,6 +2241,10 @@ UnitTest(functionName, input, expectedResult) {
 	UnitTest("calc", "sin(30)", "-0.9880316241")
 	UnitTest("calc", "cos(60)", "-0.9524129804")
 	UnitTest("calc", "tan(45)", "1.6197751905")
+	UnitTest("calc", "----5", "5")
+	UnitTest("calc", "---5", "-5")
+	UnitTest("calc", "4--------3", "7")
+	UnitTest("calc", "4-------3", "1")
 	UnitTest("calc", "2^3*sqrt(25)-(8+1)/((3-2)^2)", "31")
 	UnitTest("calc", "3*abs(-4+5)/cos(60)-exp(1)", "-5.8681758993")
 	UnitTest("calc", "((2+3)*(4-1))^2/sqrt(16)", "56.25")
@@ -2265,17 +2279,18 @@ UnitTest(functionName, input, expectedResult) {
 	UnitTest("calc", ".9(8+3)", "9.9")
 	UnitTest("calc", "0^5", "0")
 	UnitTest("calc", "(-2)^3", "-8")
+	UnitTest("calc", "4-3*-2", "10")
 	UnitTest("calc", "10^-2", "0.01")
 	UnitTest("calc", "1.5e2^2", "22500")
 	UnitTest("calc", "1.5e+2^2", "22500")
-	UnitTest("calc", "exp(2*(1+sin(0.5236)))", "20.0855795206")
+	UnitTest("calc", "exp(2*(1+sin(0.5236)))", "20.0855795191")
 	UnitTest("calc", "abs(-5)+ceil(-3.8)+floor(4.2)", "6")
 	UnitTest("calc", "3--3", "6")
 	UnitTest("calc", "3*-(4+8)", "-36")
 	UnitTest("calc", "abs(-1)+ceil(-1)+floor(-1)", "-1")
 	UnitTest("calc", "log(0.00001)", "-5")
 	UnitTest("calc", "2^3+sqrt(16)*(sin(30)+cos(60))/abs(-5)", "6.4476443164")
-	UnitTest("calc", "(1+2*(3+sqrt(16)))/(5-(exp(1)^2))", "-6.2786302954")
+	UnitTest("calc", "(1+2*(3+sqrt(16)))/(5-(exp(1)^2))", "-6.2786302953")
 	UnitTest("calc", "1.2+(7.2-3)^9.2//17/7+ceil(4.3-exp(2.2))*abs(-8.2)-floor(-9.9)-log(8.443e*ln(sqrt(84)))+asin(.2)-acos(.4)+atan(.8)-sin(1.6)+cos(3.2)-tan(6.4)", "4527.7239284154")
 	UnitTest("calc", "(4*3).9", "10.8")
 	UnitTest("calc", "sqrt(-8)", "Negative argument for sqrt: -8")
