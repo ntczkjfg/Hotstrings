@@ -2048,96 +2048,244 @@ FormatUnit(&unit) {
 
 ; Below code taken from this reddit comment:
 ; https://old.reddit.com/r/AutoHotkey/comments/129491b/how_to_force_ahk_to_evaluate_a_string_as_an/jepkhfb/
-; Then ported to autohotkey v2 and modified to fix bugs and expand capability
-; Evaluates a string
-; Operators
-;   Parentheses     ( ... )
-;   Exponents       ^
-;   Multiplication  *
-;   Floor division  //
-;   Division        /
-;   Addition        +
-;   Subtraction     -
-; Multiplication/Floor division/Divison are on the same level of order of operations, as are Addition/Subtraction
+; Then ported to autohotkey v2 and very heavily modified to fix bugs and expand capability.  
+; Evaluates a string.  Allows numbers with and without decimals or in scientific notation, parenthesis (), exponentiation ^
+; , multiplication *, division /, floor division //, addition +, subtraction -
+; , as well as the functions abs(), ceil(), exp(), floor(), log(), ln(), sqrt(), asin(), acos(), atan(), sin(), cos(), and tan().  
+; Correctly follows the order of operations and understands implicit multiplication.  Allows pi and e as constants.  
 calc(str, first := True) {
-    Static rgx := {para :"(.*?)\(([\d|\+|\-|\*|\/|\.]*?)\)(.*?)$"
-                  ,num1 :"(.*?)(-?\d+(?:\.\d+)?)"
-                  ,num2 :"(-?\d+(?:\.\d+)?)(.*?)"}
-
+	; Detects numbers like 3, 3., 3.3, 3.3e-3, 3.33e3, 3.01e+4, 3e3, 3.e3, .3e3, .3, and all of those but negative
+    rgx := {para :"^(.*?)\(([\dN+*/.^-]*?)\)(.*?)$"
+            ,num1 :"^(.*?)(-?(?:-?\d+\.\d+[Ee][+-]?\d+|-?\.\d+[Ee][-+]?\d+|-?\d+e[-+]?\d+|-?\d+\.e[-+]?\d+|\d+\.\d+|\d+\.|\d+|\.\d+)N?)"
+            ,num2 :"(-?(?:-?\d+\.\d+[Ee][+-]?\d+|-?\.\d+[Ee][-+]?\d+|-?\d+e[-+]?\d+|-?\d+\.e[-+]?\d+|\d+\.\d+|\d+\.|\d+|\.\d+)N?)(.*?)$"}
     If first {                                                      ; Only do during first time run
-		str := RegExReplace(str, "(\d)([a-zA-Z])", "$1*$2")
-		str := RegExReplace(str, "([a-zA-Z])(\d)", "$1*$2")
+		str := RegExReplace(str, "([\d.)])([a-df-zA-DF-Z]|e(?![-+]?\d+))", "$1*$2")  ; Letter dot or close paren followed by a letter is implied multiplication: 3sin -> 3*sin
+		str := RegExReplace(str, "([a-df-zA-DF-Z]|e(?!-?\d+))(\d|\.)", "$1*$2")      ; letter followed by digit or dot is implied multiplication: pi3 -> pi*3
 		str := StrReplace(str, "pi", "3.141592653589793238")
 		str := StrReplace(str, "arc", "a")
-		str := RegExReplace(str, "[Ee](?!xp)(?!il)", "2.718281828459045235")
+		funcs := Map("abs", "{01}", "ceil", "{02}", "exp", "{03}", "floor", "{04}", "log", "{05}", "ln", "{06}", "sqrt", "{07}", "asin", "{08}", "acos", "{09}", "atan", "{10}", "sin", "{11}", "cos", "{12}", "tan", "{13}")
+		For key, item In funcs {
+			str := StrReplace(str, key, item)
+		}
+		str := RegExReplace(str, "(?<!\d|\.)[Ee](?!xp|il|-?\d+)", "2.718281828459045235")
+		If RegExMatch(str, "[a-df-zA-DF-Z]|(?<!\d|\.)[eE](?![+-]?\d+)") {
+			; Above code ensures all valid letters except e in scientific notation are now gone
+			; So if any remain, there's an error in user input
+			Return "NaN"
+		}
 		str := RegExReplace(str, "(\d)\(", "$1*(")                  ; Turn 3(4+5) into 3*(4+5) to prevent concatenation
-		str := RegExReplace(str, "\)(\d)", ")*$1")                  ; Turn (4+5)3 into (4+5)*3 for same reason
+		str := RegExReplace(str, "\)(\d|\.)", ")*$1")               ; Turn (4+5)3 into (4+5)*3 for same reason
 		str := RegExReplace(str, "\)\(", ")*(")                     ; Turn (3+4)(5+6) into (3+4)*(5+6) for same reason
         StrReplace(str, "(", "(", 0, &pOpen)                        ; Count open parens
         StrReplace(str, ")", ")", 0, &pClose)                       ; Count close parens
         If (pOpen != pClose) {                                      ; Error if they don't match
-            Return "Error. Open/close parentheses mismatch."
+			If pClose > pOpen {
+				Return "Open/close parentheses mismatch."
+			}
+			While pOpen > pClose {
+				str .= ")"
+				pClose += 1
+			}
 		}
         str := StrReplace(str, " ")                                 ; Remove all spaces
         While RegExMatch(str, rgx.para, &m) {                 		; If parens still exist
 			m.2 := calc(m.2, False)
-			Switch {
-				Case SubStr(m.1, -3) = "abs": m.1 := SubStr(m.1, 1, -3), m.2 := Abs(m.2)
-				Case SubStr(m.1, -4) = "ceil": m.1 := SubStr(m.1, 1, -4), m.2 := Ceil(m.2)
-				Case SubStr(m.1, -3) = "exp": m.1 := SubStr(m.1, 1, -3), m.2 := Exp(m.2)
-				Case SubStr(m.1, -5) = "floor": m.1 := SubStr(m.1, 1, -5), m.2 := Floor(m.2)
-				Case SubStr(m.1, -3) = "log": m.1 := SubStr(m.1, 1, -3), m.2 := Log(m.2)
-				Case SubStr(m.1, -2) = "ln": m.1 := SubStr(m.1, 1, -2), m.2 := Ln(m.2)
-				Case SubStr(m.1, -4) = "sqrt": m.1 := SubStr(m.1, 1, -4), m.2 := Sqrt(m.2)
-				Case SubStr(m.1, -4) = "asin": m.1 := SubStr(m.1, 1, -4), m.2 := Asin(m.2)
-				Case SubStr(m.1, -4) = "acos": m.1 := SubStr(m.1, 1, -4), m.2 := Acos(m.2)
-				Case SubStr(m.1, -4) = "atan": m.1 := SubStr(m.1, 1, -4), m.2 := Atan(m.2)
-				Case SubStr(m.1, -3) = "sin": m.1 := SubStr(m.1, 1, -3), m.2 := Sin(m.2)
-				Case SubStr(m.1, -3) = "cos": m.1 := SubStr(m.1, 1, -3), m.2 := Cos(m.2)
-				Case SubStr(m.1, -3) = "tan": m.1 := SubStr(m.1, 1, -3), m.2 := Tan(m.2)
+			func := SubStr(m.1, -4)
+			If (m.2 <= 0 And (func == "{05}" Or func == "{06}")) {
+				func := func == "{05}" ? "log" : "ln"
+				Return "Nonpositive argument for " . func . ": " . m.2
+			} Else If (m.2 < 0 And func == "{07}") {
+				Return "Negative argument for sqrt: " . m.2
+			} Else If (Abs(m.2) > 1 And (func == "{08}" Or func == "{09}")) {
+				func := func == "{08}" ? "asin" : "acos"
+				Return "Invalid input for " . func . ": " . m.2
 			}
-            str := m.1 . calc(m.2, 0) . m.3                         ; Recursively eliminate them
+			Switch {
+				Case func = "{01}": m.1 := SubStr(m.1, 1, -4), m.2 := Abs(m.2)
+				Case func = "{02}": m.1 := SubStr(m.1, 1, -4), m.2 := Ceil(m.2)
+				Case func = "{03}": m.1 := SubStr(m.1, 1, -4), m.2 := Exp(m.2)
+				Case func = "{04}": m.1 := SubStr(m.1, 1, -4), m.2 := Floor(m.2)
+				Case func = "{05}": m.1 := SubStr(m.1, 1, -4), m.2 := Log(m.2)
+				Case func = "{06}": m.1 := SubStr(m.1, 1, -4), m.2 := Ln(m.2)
+				Case func = "{07}": m.1 := SubStr(m.1, 1, -4), m.2 := Sqrt(m.2)
+				Case func = "{08}": m.1 := SubStr(m.1, 1, -4), m.2 := Asin(m.2)
+				Case func = "{09}": m.1 := SubStr(m.1, 1, -4), m.2 := Acos(m.2)
+				Case func = "{10}": m.1 := SubStr(m.1, 1, -4), m.2 := Atan(m.2)
+				Case func = "{11}": m.1 := SubStr(m.1, 1, -4), m.2 := Sin(m.2)
+				Case func = "{12}": m.1 := SubStr(m.1, 1, -4), m.2 := Cos(m.2)
+				Case func = "{13}": m.1 := SubStr(m.1, 1, -4), m.2 := Tan(m.2)
+			}
+			If SubStr(m.3, 1, 1) == "^" And m.2 < 0 {
+				; User did something like "(-4)^x", which won't be allowed for non-integer values of x
+				; Later code will just see it as "-4^x", though, which is always allowed
+				; So, mark it with an N so the later code can tell the difference and properly return an error if necessary
+				; Later code is like 7 lines below this btw
+				m.2 := m.2 . "N"
+			}
+            str := m.1 . m.2 . m.3                                  ; Recursively eliminate them
 		}
     }
-	While RegExMatch(str, rgx.num1 . "(\^)" . rgx.num2 . "$", &m) { ; While "number sign number" exists
-		str := m.1 . (m.2 ** m.4) . m.5
+	While RegExMatch(str, rgx.num1 . "(\^)" . rgx.num2, &m) { ; While "number sign number" exists
+		If SubStr(m.2, -1, 1) == "N" {
+			m.2 := SubStr(m.2, 1, -1)
+			If m.4 != Integer(m.4) {
+				Return "Invalid non-integer exponent for a negative base: (" . m.2 . ")^" . m.4
+			}
+		}
+		If m.2 == 0 And m.4 < 0 {
+			Return "Invalid negative exponent for a zero base: 0^" . m.4
+		}
+		if m.2 > 0 {
+			result := m.2**m.4
+		} else {
+			result := -Abs(m.2)**m.4
+		}
+		str := m.1 . result . m.5
 	}
-	While RegExMatch(str, rgx.num1 . "([*/]|//)" . rgx.num2 . "$", &m) {
+	While RegExMatch(str, rgx.num1 . "([*/]|//)" . rgx.num2, &m) {
+		If m.4 == 0 And (m.3 == "/" or m.3 == "//") {
+			Return "Division by zero"
+		}
 		Switch m.3 {                                                ; Check sign and do appropriate operation
 			Case "*"  : str := m.1 . (m.2 * m.4) .  m.5
-			Case "//" : str := m.1 . (m.2 // m.4) . m.5
+			Case "//" : str := m.1 . Floor(m.2 / m.4) . m.5
 			Case "/"  : str := m.1 . (m.2 / m.4) .  m.5
 		}
 	}
-	While RegExMatch(str, rgx.num1 . "([+-])" . rgx.num2 . "$", &m) {
+	While RegExMatch(str, rgx.num1 . "((?<![eE])[+-])" . rgx.num2, &m) {
 		Switch m.3 {
 			Case "+"  : str := m.1 . (m.2 + m.4) .  m.5
 			Case "-"  : str := m.1 . (m.2 - m.4) .  m.5
 		}
 	}
-	str := Round(str, 15)                                           ; Only has about this much floating point precision anyways
-    While InStr(str, ".") && (SubStr(str, -1) = 0) {                ; If decimal and ends in 0
-        str := SubStr(str, 1, -1)                                   ; Remove the zero
+	str := Round(str, 10)                                           ; Because results like 10.800000000000001
+	if str == 0 {
+		str := 0                                                    ; Weird edge case sometimes gave -0
+	}
+	If InStr(str, ".") {                                            ; If decimal
+        str := RTrim(str, "0")                                      ; Remove trailing 0s
 	}
     Return RTrim(str, ".")                                          ; Return after removing trailing decimal
 }
 
 ::calc:: {
 	GatherInput(&text, &backspaceCount)
+	; How the user indicates a specific rounding amount
 	If i := InStr(text, ",") {
 		roundNum := SubStr(text, i+1)
 		text := SubStr(text, 1, i-1)
 	}
 	out := ""
+	; If calculation ends in !, write result as an equation
 	If SubStr(text, -1, 1) == "!" {
 		text := SubStr(text, 1, -1)
 		out .= text . " = "
 	}
+	text := StrReplace(text, " ")
 	result := calc(text)
 	If i {
 		out .= Round(result, roundNum)
 	} Else {
 		out .= result
 	}
+	; Below line used to easily create more unit tests
+	; out := 'UnitTest("calc", "' . text . '", "' . out . '")'
 	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
+
+
+; Define a testing function
+UnitTest(functionName, input, expectedResult) {
+    result := %functionName%(input)
+    If result != expectedResult {
+        MsgBox("Fail: " . functionName . "('" . input . "') returned '" . result . "', expected '" . expectedResult . "'")
+    }
+}
+
+::unittest:: {
+	UnitTest("calc", "3+4", "7")
+	UnitTest("calc", "5-2", "3")
+	UnitTest("calc", "6*7", "42")
+	UnitTest("calc", "8/2", "4")
+	UnitTest("calc", "10//3", "3")
+	UnitTest("calc", "9^2", "81")
+	UnitTest("calc", "(3+4)*(5-2)", "21")
+	UnitTest("calc", "6*(7-2)/2", "15")
+	UnitTest("calc", "8/(2*(4-2))", "2")
+	UnitTest("calc", "((1+2)*(3+4))/(5+6)", "1.9090909091")
+	UnitTest("calc", "3+4*5", "23")
+	UnitTest("calc", "2^3+6/2", "11")
+	UnitTest("calc", "2*(3+4)^2", "98")
+	UnitTest("calc", "(8+1)/(3-2)^2", "9")
+	UnitTest("calc", "abs(-5)", "5")
+	UnitTest("calc", "ceil(4.3)", "5")
+	UnitTest("calc", "exp(2)", "7.3890560989")
+	UnitTest("calc", "floor(4.8)", "4")
+	UnitTest("calc", "log(10)", "1")
+	UnitTest("calc", "ln(2.718)", "0.9998963157")
+	UnitTest("calc", "sqrt(16)", "4")
+	UnitTest("calc", "e^7-exp(7)", "0")
+	UnitTest("calc", "asin(0.5)", "0.5235987756")
+	UnitTest("calc", "acos(0.5)", "1.0471975512")
+	UnitTest("calc", "atan(1)", "0.7853981634")
+	UnitTest("calc", "sin(30)", "-0.9880316241")
+	UnitTest("calc", "cos(60)", "-0.9524129804")
+	UnitTest("calc", "tan(45)", "1.6197751905")
+	UnitTest("calc", "2^3*sqrt(25)-(8+1)/((3-2)^2)", "31")
+	UnitTest("calc", "3*abs(-4+5)/cos(60)-exp(1)", "-5.8681758993")
+	UnitTest("calc", "((2+3)*(4-1))^2/sqrt(16)", "56.25")
+	UnitTest("calc", "1+2*(3+4*(5+6*(7+8*(9+10)))/9)/8", "108.3055555556")
+	UnitTest("calc", "1+23+45+6", "75")
+	UnitTest("calc", "3+4*5/(2+1)", "9.6666666667")
+	UnitTest("calc", "(1+2)*(3+4)/(5+6)", "1.9090909091")
+	UnitTest("calc", "2^3*(4-1)+sqrt(16)/ln(2)", "29.7707801636")
+	UnitTest("calc", "ceil(3.6)*floor(2.8)+exp(1)^2", "15.3890560989")
+	UnitTest("calc", "(((2+3)*4)-(1+2))/(5-6)", "-17")
+	UnitTest("calc", "sqrt(sqrt(16))", "2")
+	UnitTest("calc", "floor(ceil(5.5))", "6")
+	UnitTest("calc", "(1+2*(3+(4*(5+(6*(7+(8*9)))))))", "3839")
+	UnitTest("calc", "sin(30)+cos(60)", "-1.9404446045")
+	UnitTest("calc", "tan(45)-asin(0.5)", "1.0961764149")
+	UnitTest("calc", "acos(cos(0.5236))", "0.5236")
+	UnitTest("calc", "atan(1)+sin(0.5236)-cos(0.5236)", "0.4193744322")
+	UnitTest("calc", "0.5+0.25", "0.75")
+	UnitTest("calc", "1.5*2.0/3.333", "0.900090009")
+	UnitTest("calc", "0.1^2+0.01^2+0.001^2", "0.010101")
+	UnitTest("calc", "sqrt(4.0)/2.5", "0.8")
+	UnitTest("calc", "3/4*5", "3.75")
+	UnitTest("calc", "2^10*3^5/5^3", "1990.656")
+	UnitTest("calc", "-2.e-2+3", "2.98")
+	UnitTest("calc", "3+2e4", "20003")
+	UnitTest("calc", ".23e6/4", "57500")
+	UnitTest("calc", "sqrt(2)^10", "32")
+	UnitTest("calc", "sqrt(2)^3*(sin(45)+cos(45))/2.5", "1.5570214287")
+	UnitTest("calc", "(1+2*(3+4/2.0))^2", "121")
+	UnitTest("calc", "exp(1)^2*3.5-floor(sqrt(9.9))", "22.8616963463")
+	UnitTest("calc", "2^0", "1")
+	UnitTest("calc", ".9(8+3)", "9.9")
+	UnitTest("calc", "0^5", "0")
+	UnitTest("calc", "(-2)^3", "-8")
+	UnitTest("calc", "10^-2", "0.01")
+	UnitTest("calc", "1.5e2^2", "22500")
+	UnitTest("calc", "1.5e+2^2", "22500")
+	UnitTest("calc", "exp(2*(1+sin(0.5236)))", "20.0855795206")
+	UnitTest("calc", "abs(-5)+ceil(-3.8)+floor(4.2)", "6")
+	UnitTest("calc", "3--3", "6")
+	UnitTest("calc", "3*-(4+8)", "-36")
+	UnitTest("calc", "abs(-1)+ceil(-1)+floor(-1)", "-1")
+	UnitTest("calc", "log(0.00001)", "-5")
+	UnitTest("calc", "2^3+sqrt(16)*(sin(30)+cos(60))/abs(-5)", "6.4476443164")
+	UnitTest("calc", "(1+2*(3+sqrt(16)))/(5-(exp(1)^2))", "-6.2786302954")
+	UnitTest("calc", "1.2+(7.2-3)^9.2//17/7+ceil(4.3-exp(2.2))*abs(-8.2)-floor(-9.9)-log(8.443e*ln(sqrt(84)))+asin(.2)-acos(.4)+atan(.8)-sin(1.6)+cos(3.2)-tan(6.4)", "4527.7239284154")
+	UnitTest("calc", "(4*3).9", "10.8")
+	UnitTest("calc", "sqrt(-8)", "Negative argument for sqrt: -8")
+	UnitTest("calc", "ln(-4)", "Nonpositive argument for ln: -4")
+	UnitTest("calc", "log(0)", "Nonpositive argument for log: 0")
+	UnitTest("calc", "asin(17)", "Invalid input for asin: 17")
+	UnitTest("calc", "arccos(-4)", "Invalid input for acos: -4")
+	UnitTest("calc", "0^-4.2", "Invalid negative exponent for a zero base: 0^-4.2")
+	UnitTest("calc", "(-4)^7.2", "Invalid non-integer exponent for a negative base: (-4)^7.2")
+	UnitTest("calc", "-4^2", "-16")
+	UnitTest("calc", "1/0", "Division by zero")
+	Send "{Raw}Done!"
 }
