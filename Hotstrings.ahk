@@ -185,6 +185,10 @@ endchar := "\"
 ::a'::á
 ::A``::À
 ::a``::à
+::A-::Ā
+::a-::ā
+::Av::Ǎ
+::av::ǎ
 ::A^::Â
 ::a^::â
 ::Ao::Å
@@ -197,6 +201,10 @@ endchar := "\"
 ::a-acute::á
 ::A-grave::À
 ::a-grave::à
+::A-macron::Ā
+::a-macron::ā
+::A-caron::Ǎ
+::a-caron::ǎ
 ::A-circumflex::Â
 ::a-circumflex::â
 ::A-ring::Å
@@ -212,6 +220,10 @@ endchar := "\"
 ::e'::é
 ::E``::È
 ::e``::è
+::E-::Ē
+::e-::ē
+::Ev::Ě
+::ev::ě
 ::E^::Ê
 ::e^::ê
 ::E**::Ë
@@ -220,6 +232,10 @@ endchar := "\"
 ::e-acute::é
 ::E-grave::È
 ::e-grave::è
+::E-macron::Ē
+::e-macron::ē
+::E-caron::Ě
+::e-caron::ě
 ::E-circumflex::Ê
 ::e-circumflex::ê
 ::E-umlaut::Ë
@@ -229,6 +245,10 @@ endchar := "\"
 ::i'::í
 ::I``::Ì
 ::i``::ì
+::I-::Ī
+::i-::ī
+::Iv::Ǐ
+::iv::ǐ
 ::I^::Î
 ::i^::î
 ::I**::Ï
@@ -237,6 +257,10 @@ endchar := "\"
 ::i-acute::í
 ::I-grave::Ì
 ::i-grave::ì
+::I-macron::Ī
+::i-macron::ī
+::I-caron::Ǐ
+::i-caron::ǐ
 ::I-circumflex::Î
 ::i-circumflex::î
 ::I-umlaut::Ï
@@ -246,6 +270,10 @@ endchar := "\"
 ::o'::ó
 ::O``::Ò
 ::o``::ò
+::O-::Ō
+::o-::ō
+::Ov::Ǒ
+::ov::ǒ
 ::O^::Ô
 ::o^::ô
 ::O**::Ö
@@ -256,6 +284,10 @@ endchar := "\"
 ::o-acute::ó
 ::O-grave::Ò
 ::o-grave::ò
+::O-macron::Ō
+::o-macron::ō
+::O-caron::Ǒ
+::o-caron::ǒ
 ::O-circumflex::Ô
 ::o-circumflex::ô
 ::O-umlaut::Ö
@@ -267,6 +299,18 @@ endchar := "\"
 ::u'::ú
 ::U``::Ù
 ::u``::ù
+::U-::Ū
+::u-::ū
+::Uv::Ǔ
+::uv::ǔ
+::U*'::Ǘ
+::u*'::ǘ
+::U*``::Ǜ
+::u*``::ǜ
+::U*-::Ǖ
+::u*-::ǖ
+::U*v::Ǚ
+::u*v::ǚ
 ::U^::Û
 ::u^::û
 ::Uo::Ů
@@ -277,6 +321,10 @@ endchar := "\"
 ::u-acute::ú
 ::U-grave::Ù
 ::u-grave::ù
+::U-macron::Ū
+::u-macron::ū
+::U-caron::Ǔ
+::u-caron::ǔ
 ::U-circumflex::Û
 ::u-circumflex::û
 ::U-ring::Ů
@@ -589,6 +637,12 @@ endchar := "\"
 ::^...::⋱
 ::....::⋮
 ::...::⋯
+::c.::。
+::c?::？
+::c!::！
+::c`:::：
+::c,::，
+::c;::；
 
 
 ; Kaomoji
