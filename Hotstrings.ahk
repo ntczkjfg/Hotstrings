@@ -349,6 +349,8 @@ endchar := "\"
 
 ::AE::Æ
 ::ae::æ
+::OE::Œ
+::oe::œ
 
 ::slong::ſ
 ::Thorn::Þ
@@ -884,6 +886,7 @@ endchar := "\"
 ::goldheart::💛
 ::goldenheart::💛
 ::purpleheart::💜
+::twohearts::💕
 ::realheart::🫀
 ::anatomicalheart::🫀
 ::flamingheart::❤️‍🔥
@@ -1151,12 +1154,26 @@ GatherInput(&text, &backspaceCount) {
 	text := text.Input
 	; Handles pasting
 	text := StrReplace(text, Chr(22), A_Clipboard)
-	text := StrReplace(text, "`r", "  ")
-	text := StrReplace(text, "`n", "  ")
 	backspaceCount := StrLen(text) + 1
 	If StrLen(text) == 0 { ; If they didn't type anything, take the text from the clipboard
 		text := A_Clipboard
 	}
+	len := StrLen(text)
+	text := StrReplace(text, "`r", "  ")
+	text := StrReplace(text, "`n", "  ")
+	If len > 1000 {
+		Send "{bs 1}Too much text. Limit: 1000 characters. You sent " . len . ". "
+		text := ""
+		backspaceCount := 0
+		Return
+	}
+}
+
+; Sends arbitrarily specified unicode character
+::U+:: {
+    GatherInput(&text, &backspaceCount)
+	
+	Send "{bs " . backspaceCount . "}{U+" . text . "}"
 }
 
 ; Bulk superscripting
@@ -1852,7 +1869,7 @@ FormatUnit(&unit) {
 	unit := StrReplace(unit, "cu", "3") ; cumeter -> 3meters
 	If IsNumber(num := SubStr(unit, 1, 1)) {
 		unit := SubStr(unit, 2) . num ; 3meter -> meters3
-		If unit = "p3" { ; cup -> 3p -> cup
+		If unit = "p3" or unit = "ps3" { ; cup(s) -> 3p(s) -> p(s)3 -> cup
 			unit := "cup"
 		}
 	}
@@ -1932,7 +1949,7 @@ FormatUnit(&unit) {
 						, " m³", [["m3", "meter3", "metre3"], [1000]]
 						, " tsp", [["tsp", "teaspoon"], [4.92892159375/1000]]
 						, " tbsp", [["tb", "tbsp", "tablespoon"], [3*4.92892159375/1000]]
-						, " fluid ounces", [["fl", "fluidounce", "flounce", "fl.ounce", "floz", "fl.oz", "fluidoz"], [.0295735295625]]
+						, " fluid ounces", [["fl", "fluidounce", "flounce", "fl.ounce", "floz", "fl.oz", "fluidoz", "oz", "ounce"], [.0295735295625]]
 						, " cups", [["c", "cup"], [236.5882365/1000]]
 						, " pints", [["p", "pint"], [236.5882365/500]]
 						, " quarts", [["q", "quart"], [236.5882365/250]]
