@@ -2082,9 +2082,9 @@ FormatUnit(&unit) {
 	newVal := Convert(newVal, dimensions[unit2[1]][unit2[2]][2], True)
 	; If the destination unit also has an SI prefix, then convert from the base unit to it
 	If (prefix := unit2[3]) != "" {
-		If SubStr(unit2[2], -1, 1) == "2" {
+		If SubStr(unit2[2], -1, 1) == "²" {
 			newVal /= metricPrefixes[prefix]**2
-		} Else If SubStr(unit2[2], -1, 1) == "3" {
+		} Else If SubStr(unit2[2], -1, 1) == "³" {
 			newVal /= metricPrefixes[prefix]**3
 		} Else {
 			newVal /= metricPrefixes[prefix]
