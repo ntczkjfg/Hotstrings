@@ -26,6 +26,8 @@ Out(output) {
 }
 
 ; Romanji to Hiragana
+::dzi::Out("ぢ")
+::dzu::Out("づ")
 ::shi::Out("し")
 ::chi::Out("ち")
 ::tsu::Out("つ")
@@ -166,6 +168,8 @@ Out(output) {
 ::じゅ::Out("ジュ")
 ::じょ::Out("ジョ")
 ::ゔぁ::Out("ヴァ")
+::ぢ::Out("ヂ")
+::づ::Out("ヅ")
 ::し::Out("シ")
 ::ち::Out("チ")
 ::つ::Out("ツ")
@@ -272,6 +276,8 @@ Out(output) {
 ::ジュ::Out("じゅ")
 ::ジョ::Out("じょ")
 ::ヴァ::Out("ゔぁ")
+::ヂ::Out("ぢ")
+::ヅ::Out("づ")
 ::シ::Out("し")
 ::チ::Out("ち")
 ::ツ::Out("つ")
@@ -381,6 +387,8 @@ GatherInput(&text, &backspaceCount) {
 ::h:: {
 	GatherInput(&text, &backspaceCount)
 	
+	text := StrReplace(text, "dzi", "ぢ")
+	text := StrReplace(text, "dzu", "づ")
 	text := StrReplace(text, "shi", "し")
 	text := StrReplace(text, "chi", "ち")
 	text := StrReplace(text, "tsu", "つ")
@@ -493,6 +501,8 @@ GatherInput(&text, &backspaceCount) {
 ::k:: {
 	GatherInput(&text, &backspaceCount)
 	
+	text := StrReplace(text, "dzi", "ヂ")
+	text := StrReplace(text, "dzu", "ヅ")
 	text := StrReplace(text, "shi", "シ")
 	text := StrReplace(text, "chi", "チ")
 	text := StrReplace(text, "tsu", "ツ")
@@ -673,6 +683,8 @@ GatherInput(&text, &backspaceCount) {
 	text := StrReplace(text, "じょ", "jo")
 	text := StrReplace(text, "ゔぁ", "va")
 	text := StrReplace(text, "ヴァ", "va")
+	text := StrReplace(text, "ぢ", "dzi")
+	text := StrReplace(text, "づ", "dzu")
 	text := StrReplace(text, "シ", "shi")
 	text := StrReplace(text, "チ", "chi")
 	text := StrReplace(text, "ツ", "tsu")
@@ -743,6 +755,8 @@ GatherInput(&text, &backspaceCount) {
 	text := StrReplace(text, "エ", "e")
 	text := StrReplace(text, "オ", "o")
 	text := StrReplace(text, "ン", "n")
+	text := StrReplace(text, "ヂ", "dzi")
+	text := StrReplace(text, "ヅ", "dzu")
 	text := StrReplace(text, "し", "shi")
 	text := StrReplace(text, "ち", "chi")
 	text := StrReplace(text, "つ", "tsu")
@@ -820,49 +834,25 @@ GatherInput(&text, &backspaceCount) {
 ; The following table contains all supported hiragana, katakana, and romanji characters
 ; Just in case changes are ever needed
 ; Goes in order:  Hiragana, Katakana, Romanji
-; し シ shi
-; ち チ chi
-; つ ツ tsu
-; きゃ キャ kya
-; きゅ キュ kyu
-; きょ キョ kyo
-; しゃ シャ sha
-; しゅ シュ shu
-; しょ ショ sho
-; ちゃ チャ cha
-; ちゅ チュ chu
-; ちょ チョ cho
-; にゃ ニャ nya
-; にゅ ニュ nyu
-; にょ ニョ nyo
-; ひゃ ヒャ hya
-; ひゅ ヒュ hyu
-; ひょ ヒョ hyo
-; みゃ ミャ mya
-; みゅ ミュ myu
-; みょ ミョ myo
-; りゃ リャ rya
-; りゅ リュ ryu
-; りょ リョ ryo
-; ぎゃ ギャ gya
-; ぎゅ ギュ gyu
-; ぎょ ギョ gyo
-; びゃ ビャ bya
-; びゅ ビュ byu
-; びょ ビョ byo
-; ぴゃ ピャ pya
-; ぴゅ ピュ pyu
-; ぴょ ピョ pyo
+; Basic
+; あ ア a
+; い イ i
+; う ウ u
+; え エ e
+; お オ o
 ; か カ ka
 ; き キ ki
 ; く ク ku
 ; け ケ ke
 ; こ コ ko
 ; さ サ sa
+; し シ shi
 ; す ス su
 ; せ セ se
 ; そ ソ so
 ; た タ ta
+; ち チ chi
+; つ ツ tsu
 ; て テ te
 ; と ト to
 ; な ナ na
@@ -890,6 +880,9 @@ GatherInput(&text, &backspaceCount) {
 ; ろ ロ ro
 ; わ ワ wa
 ; を ヲ wo
+; ん ン n
+
+; Dakuon
 ; が ガ ga
 ; ぎ ギ gi
 ; ぐ グ gu
@@ -901,6 +894,8 @@ GatherInput(&text, &backspaceCount) {
 ; ぜ ゼ ze
 ; ぞ ゾ zo
 ; だ ダ da
+; ぢ ヂ dzi
+; づ ヅ dzu
 ; で デ de
 ; ど ド do
 ; ば バ ba
@@ -913,14 +908,42 @@ GatherInput(&text, &backspaceCount) {
 ; ぷ プ pu
 ; ぺ ペ pe
 ; ぽ ポ po
+
+; Combo
+; きゃ キャ kya
+; きゅ キュ kyu
+; きょ キョ kyo
+; ぎゃ ギャ gya
+; ぎゅ ギュ gyu
+; ぎょ ギョ gyo
+; しゃ シャ sha
+; しゅ シュ shu
+; しょ ショ sho
 ; じゃ ジャ ja
 ; じゅ ジュ ju
 ; じょ ジョ jo
+; ちゃ チャ cha
+; ちゅ チュ chu
+; ちょ チョ cho
+; にゃ ニャ nya
+; にゅ ニュ nyu
+; にょ ニョ nyo
+; ひゃ ヒャ hya
+; ひゅ ヒュ hyu
+; ひょ ヒョ hyo
+; びゃ ビャ bya
+; びゅ ビュ byu
+; びょ ビョ byo
+; ぴゃ ピャ pya
+; ぴゅ ピュ pyu
+; ぴょ ピョ pyo
+; みゃ ミャ mya
+; みゅ ミュ myu
+; みょ ミョ myo
+; りゃ リャ rya
+; りゅ リュ ryu
+; りょ リョ ryo
+
+; Unofficial
 ; ゔ ヴ vu
 ; ゔぁ ヴァ va
-; あ ア a
-; い イ i
-; う ウ u
-; え エ e
-; お オ o
-; ん ン n

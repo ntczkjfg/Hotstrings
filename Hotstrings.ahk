@@ -2068,9 +2068,9 @@ FormatUnit(&unit) {
 	newVal := val
 	; If we have an SI prefix, use it to convert val to the base unit first - careful with area and volume units
 	If (prefix := unit1[3]) != "" {
-		If SubStr(unit1[2], -1, 1) == "2" {
+		If SubStr(unit1[2], -1, 1) == "²" {
 			newVal *= metricPrefixes[prefix]**2
-		} Else If SubStr(unit1[2], -1, 1) == "3" {
+		} Else If SubStr(unit1[2], -1, 1) == "³" {
 			newVal *= metricPrefixes[prefix]**3
 		} Else {
 			newVal *= metricPrefixes[prefix]
