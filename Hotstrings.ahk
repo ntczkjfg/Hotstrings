@@ -732,6 +732,7 @@ endchar := "\"
 ::love::😍
 ::love2::🥰
 ::smirk::😏
+::smug::😏
 ::stoic::😐
 ::kiss::😙
 ::kiss2::😘
@@ -880,12 +881,16 @@ endchar := "\"
 ::brownheart::🤎
 ::blackheart::🖤
 ::redheart::❤️
+::lightblueheart::🩵
 ::blueheart::💙
 ::greenheart::💚
 ::yellowheart::💛
 ::goldheart::💛
 ::goldenheart::💛
 ::purpleheart::💜
+::pinkheart::🩷
+::greyheart::🩶
+::grayheart::🩶
 ::twohearts::💕
 ::realheart::🫀
 ::anatomicalheart::🫀
@@ -1111,7 +1116,7 @@ endchar := "\"
 
 ; Randomizes the solid colored hearts
 ::hearts::{
-	hearts := ["💚", "🤎", "💙", "🧡", "🤍", "🖤", "❤️", "💛", "💜"]
+	hearts := ["💚", "🤎", "💙", "🧡", "🤍", "🖤", "❤️", "💛", "💜", "🩷", "🩶", "🩵"]
 	newHearts := ""
 	while hearts.Length > 0 {
 		N := Random(1, hearts.Length)
@@ -1123,7 +1128,7 @@ endchar := "\"
 
 ; Randomizes even more hearts
 ::hearts2::{
-	hearts := ["💚", "🤎", "💙", "🧡", "🤍", "🖤", "❤️", "💛", "💜", "💝", "💘", "💖", "💗", "💓", "💞", "💟", "❣", "💕", "🫀"]
+	hearts := ["💚", "🤎", "💙", "🧡", "🤍", "🖤", "❤️", "💛", "💜", "💝", "💘", "💖", "💗", "💓", "💞", "💟", "❣", "💕", "🫀", "🩷", "🩶", "🩵"]
 	newHearts := ""
 	while hearts.Length > 0 {
 		N := Random(1, hearts.Length)
@@ -1980,7 +1985,7 @@ FormatUnit(&unit) {
 					, "angular measure", Map(
 						"°", [["d", "deg", "degree"], []]
 						, " radians", [["r", "rad", "radian"], [180/3.14159265358979]]
-						, "gradians", [["g", "grad", "gradian"], [.9]]
+						, " gradians", [["grad", "gradian"], [.9]]
 						, "'", [["am", "arcm", "arcmin", "arcminute"], [1/60]]
 						, '"', [["as", "arcs", "arcsec", "arcsecond"], [1/3600]] ) )
 	; SI prefixes and their associated factors
@@ -1996,8 +2001,9 @@ FormatUnit(&unit) {
 	unit1Matches := []
 	unit2Matches := []
 	For dimension, units In dimensions {
+		;MsgBox StrUpper(dimension)
 		For unit, aliases In units {
-			For alias In aliases[1] {
+			For alias In aliases[1] { ; aliases[2] contains the conversion factor
 				If SubStr(unit1, -StrLen(alias)) = alias {
 					; The input ends in a valid unit alias - if that's the full input, or if an SI prefix completes the full input, accept it as a match
 					prefix := ""
@@ -2011,7 +2017,7 @@ FormatUnit(&unit) {
 								prefix := StrLower(prefix)
 							} Else If metricPrefixes.Has(StrUpper(prefix)) {
 								prefix := StrUpper(prefix)
-							} Else {
+							} Else { ; No prefix works - abandon this non-match and continue searching
 								Continue
 							}
 						}
@@ -2099,12 +2105,14 @@ FormatUnit(&unit) {
 			newVal := Integer(newVal)
 		}
 	}
-	If (prefix := unit2[3]) != "" {
+	If prefix != "" {
 		If metricSymbols.Has(prefix) {
 			prefix := metricSymbols[prefix]
 		}
 		If SubStr(unit2[2], 1, 1) == " " {
 			suffix := " " . prefix . SubStr(unit2[2], 2)
+		} Else {
+			suffix := prefix . unit2[2]
 		}
 	} Else {
 		suffix := unit2[2]
@@ -2205,18 +2213,20 @@ calc(str, first := True) {
 		}
     }
 	While RegExMatch(str, rgx.num1 . "(\^)" . rgx.num2, &m) { ; While "number sign number" exists
-		If SubStr(m.2, -1, 1) == "N" {
+		neg := False
+		If SubStr(m.2, -1, 1) == "N" { ; If true, then this exponent was applied to a parenthetical group that evaluated to negative - needs special handling
 			m.2 := SubStr(m.2, 1, -1)
 			If m.4 != Integer(m.4) {
 				Return "Invalid non-integer exponent for a negative base: (" . m.2 . ")^" . m.4
 			}
+			neg := True
 		}
 		If m.2 == 0 And m.4 < 0 {
 			Return "Invalid negative exponent for a zero base: 0^" . m.4
 		}
-		if m.2 > 0 {
+		If m.2 >= 0 Or neg {
 			result := m.2**m.4
-		} else {
+		} Else {
 			result := -Abs(m.2)**m.4
 		}
 		str := m.1 . result . m.5
@@ -2257,8 +2267,8 @@ calc(str, first := True) {
 		text := SubStr(text, 1, i-1)
 	}
 	out := ""
-	; If calculation ends in !, write result as an equation
-	If SubStr(text, -1, 1) == "!" {
+	; If calculation ends in =, write result as an equation
+	If SubStr(text, -1, 1) == "=" {
 		text := SubStr(text, 1, -1)
 		out .= text . " = "
 	}
@@ -2373,5 +2383,6 @@ UnitTest(functionName, input, expectedResult) {
 	UnitTest("calc", "(-4)^7.2", "Invalid non-integer exponent for a negative base: (-4)^7.2")
 	UnitTest("calc", "-4^2", "-16")
 	UnitTest("calc", "1/0", "Division by zero")
+	UnitTest("calc", "sqrt(((20-11)^2 + (3-11)^2 + (2-11)^2 + (10-11)^2 + (20-11)^2)/5)", "7.8485667481")
 	Send "{Raw}Done!"
 }
