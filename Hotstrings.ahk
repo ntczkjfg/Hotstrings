@@ -690,7 +690,6 @@ endchar := "\"
 ::bullet::•
 ::flat::♭
 ::sharp::♯
-::#::♯
 ::natural::♮
 ::nat::♮
 
@@ -803,6 +802,7 @@ endchar := "\"
 ::spicy::🥵
 ::relief::😅
 ::phew::😅
+:::'D::😅
 ::baby::👶
 ::liar::🤥
 ::lying::🤥
@@ -818,6 +818,11 @@ endchar := "\"
 ::dead::💀
 ::alien::👽
 ::robot::🤖
+::moonface::🌚
+::dottedface::🫥
+::dotted::🫥
+::dashed::🫥
+::dashedface::🫥
 
 ; Poses
 ::hugging::🫂
@@ -848,6 +853,7 @@ endchar := "\"
 ::luck::🤞
 ::pinch::🤏
 ::small::🤏
+::tiny::🤏
 ::horns::🤘
 ::callme::🤙
 ::handshake::🤝
@@ -870,6 +876,8 @@ endchar := "\"
 ::LLAP::🖖
 ::hand::✋
 ::v::✌️
+::strong::💪
+::muscle::💪
 
 ; Hearts
 ::heartsuit::♥️
@@ -902,6 +910,8 @@ endchar := "\"
 ::handsheart::🫶
 ::plainheart::♡
 ::textheart::♡
+::heartbeat::💓
+::beatingheart::💓
 ::heart::❤️
 
 ; Animals and plants
@@ -1096,6 +1106,10 @@ endchar := "\"
 ::textstar::★
 ::hollowstar::☆
 ::crossbones::☠️
+::!?::⁉️
+::!!::‼️
+::!::❗
+::?::❓
 
 
 ; Problematic Hotstrings that interrupt other Hotstrings if placed before them in this file.  These appear above but are commented out
@@ -1143,10 +1157,10 @@ endchar := "\"
 ; Did they type?  Paste?  Use from the clipboard?  
 ; Send too much or take too long?  How much needs to be backspaced?  
 ; Always backspace at least 1 for endchar.  Results are passed by reference so no returning needed.  
-GatherInput(&text, &backspaceCount) {
+GatherInput(&text, &backspaceCount, maxInputLength := 1000) {
 	; Collects all input until endchar. Give up after L characters or T seconds.
 	Suspend
-	text := InputHook("MVL1000T90", endchar)
+	text := InputHook("MVL" . maxInputLength . "T90", endchar)
 	text.Start()
 	text.Wait()
 	Suspend
@@ -1166,8 +1180,8 @@ GatherInput(&text, &backspaceCount) {
 	len := StrLen(text)
 	text := StrReplace(text, "`r", "  ")
 	text := StrReplace(text, "`n", "  ")
-	If len > 1000 {
-		Send "{bs 1}Too much text. Limit: 1000 characters. You sent " . len . ". "
+	If len > maxInputLength {
+		Send "{bs 1}Too much text. Limit: " . maxInputLength . " characters. You sent " . len . ". "
 		text := ""
 		backspaceCount := 0
 		Return
@@ -1179,6 +1193,58 @@ GatherInput(&text, &backspaceCount) {
     GatherInput(&text, &backspaceCount)
 	
 	Send "{bs " . backspaceCount . "}{U+" . text . "}"
+}
+
+::##:: {
+	GatherInput(&text, &backspaceCount)
+	
+	text := StrReplace(text, ",", " ")
+	text := StrReplace(text, "  ", " ")
+	firstSpace := InStr(text, " ")
+	secondSpace := InStr(text, " ", false, firstSpace + 1)
+	thirdSpace := InStr(text, " ", false, secondSpace + 1)
+	If firstSpace = 0 Or secondSpace = 0 Or thirdSpace != 0 {
+		Return
+	}
+	R := SubStr(text, 1, firstSpace - 1)
+	G := SubStr(text, firstSpace + 1, secondSpace - firstSpace - 1)
+	B := SubStr(text, secondSpace + 1, StrLen(text) - secondSpace)
+	If R < 0 or R > 255 or G < 0 or G > 255 or B < 0 or B > 255 {
+		Return
+	}
+	R := Format("{:02X}", R)
+	G := Format("{:02X}", G)
+	B := Format("{:02X}", B)
+	
+	out :=  "#" . R . G . B
+	
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
+
+:b0:#:: {
+	GatherInput(&text, &backspaceCount, 7)
+	
+    ; Remove the "#" if present
+    text := StrReplace(text, "#", "")
+	
+	If StrLen(text) != 6 Or Not RegExMatch(text, "^[0-9a-fA-F]+$") {
+		Return
+	}
+	
+    ; Split the hex color into its RGB components
+    R := "0x" SubStr(text, 1, 2)
+    G := "0x" SubStr(text, 3, 2)
+    B := "0x" SubStr(text, 5, 2)
+	
+    ; Convert hex to decimal
+    R := Format("{:d}", R)
+    G := Format("{:d}", G)
+    B := Format("{:d}", B)
+	
+    ; Return the RGB values as a comma-separated string
+    out :=  R . ", " . G . ", " . B
+	
+	Send "{Backspace " . backspaceCount + 1 . "}{Raw}" . out
 }
 
 ; Bulk superscripting
@@ -2143,6 +2209,7 @@ calc(str, first := True) {
 		str := RegExReplace(str, "([a-df-zA-DF-Z]|e(?!-?\d+))(\d|\.)", "$1*$2")      ; letter followed by digit or dot is implied multiplication: pi3 -> pi*3
 		str := StrReplace(str, "pi", "3.141592653589793238")
 		str := StrReplace(str, "arc", "a")
+		str := StrReplace(str, "ceiling", "ceil")
 		funcs := Map("abs", "{01}", "ceil", "{02}", "exp", "{03}", "floor", "{04}", "log", "{05}", "ln", "{06}", "sqrt", "{07}", "asin", "{08}", "acos", "{09}", "atan", "{10}", "sin", "{11}", "cos", "{12}", "tan", "{13}")
 		For key, item In funcs {
 			str := StrReplace(str, key, item)
