@@ -627,13 +627,16 @@ endchar := "\"
 ::info::ⓘ
 ::information::ⓘ
 ::section::§
+::ddagger::‡
 ::dagger::†
 ::paragraph::¶
 ::pilcrow::¶
 ;::-::–
 ::--::—
-::<"::“
-::>"::”
+::""::”
+::"::“
+::''::’
+::'::‘
 ::qed::∎
 ::_...::⋰
 ::^...::⋱
@@ -645,6 +648,7 @@ endchar := "\"
 ::`:c::：
 ::,c::，
 ::;c::；
+
 
 
 ; Kaomoji
@@ -710,6 +714,7 @@ endchar := "\"
 :::|::😐
 :::/::🫤
 ::>_<::😖
+::>.<::😖
 :::*::😙
 :::P::😛
 ::;P::😜
@@ -818,6 +823,8 @@ endchar := "\"
 ::dead::💀
 ::alien::👽
 ::robot::🤖
+::clown::🤡
+::sigh::😮‍💨
 ::moonface::🌚
 ::dottedface::🫥
 ::dotted::🫥
@@ -977,6 +984,9 @@ endchar := "\"
 
 ; Nature
 ::storm::⛈️
+::zap::⚡
+::lightning::⚡
+::bolt::⚡
 ::snow::❄️
 ::snowflake::❄️
 ;::star::⭐
@@ -1001,6 +1011,9 @@ endchar := "\"
 ::wet::💦
 
 ; Objects
+::alarm::🚨
+::alert::🚨
+::siren::🚨
 ::piano::🎹
 ::key::🔑
 ::lock::🔒
@@ -1423,6 +1436,137 @@ GatherInput(&text, &backspaceCount, maxInputLength := 1000) {
 	Send "{Backspace " . backspaceCount . "}{Raw}" . out
 }
 
+; Bulk hidden characters (undo)
+::unhide:: {
+	GatherInput(&text, &backspaceCount)
+	text := StrReplace(text, "󠁡", "a")
+	text := StrReplace(text, "󠁢", "b")
+	text := StrReplace(text, "󠁣", "c")
+	text := StrReplace(text, "󠁤", "d")
+	text := StrReplace(text, "󠁥", "e")
+	text := StrReplace(text, "󠁦", "f")
+	text := StrReplace(text, "󠁧", "g")
+	text := StrReplace(text, "󠁨", "h")
+	text := StrReplace(text, "󠁩", "i")
+	text := StrReplace(text, "󠁪", "j")
+	text := StrReplace(text, "󠁫", "k")
+	text := StrReplace(text, "󠁬", "l")
+	text := StrReplace(text, "󠁭", "m")
+	text := StrReplace(text, "󠁮", "n")
+	text := StrReplace(text, "󠁯", "o")
+	text := StrReplace(text, "󠁰", "p")
+	text := StrReplace(text, "󠁱", "q")
+	text := StrReplace(text, "󠁲", "r")
+	text := StrReplace(text, "󠁳", "s")
+	text := StrReplace(text, "󠁴", "t")
+	text := StrReplace(text, "󠁵", "u")
+	text := StrReplace(text, "󠁶", "v")
+	text := StrReplace(text, "󠁷", "w")
+	text := StrReplace(text, "󠁸", "x")
+	text := StrReplace(text, "󠁹", "y")
+	text := StrReplace(text, "󠁺", "z")
+	text := StrReplace(text, "󠀠", " ")
+	text := StrReplace(text, "󠁁", "A")
+	text := StrReplace(text, "󠁂", "B")
+	text := StrReplace(text, "󠁃", "C")
+	text := StrReplace(text, "󠁄", "D")
+	text := StrReplace(text, "󠁅", "E")
+	text := StrReplace(text, "󠁆", "F")
+	text := StrReplace(text, "󠁇", "G")
+	text := StrReplace(text, "󠁈", "H")
+	text := StrReplace(text, "󠁉", "I")
+	text := StrReplace(text, "󠁊", "J")
+	text := StrReplace(text, "󠁋", "K")
+	text := StrReplace(text, "󠁌", "L")
+	text := StrReplace(text, "󠁍", "M")
+	text := StrReplace(text, "󠁎", "N")
+	text := StrReplace(text, "󠁏", "O")
+	text := StrReplace(text, "󠁐", "P")
+	text := StrReplace(text, "󠁑", "Q")
+	text := StrReplace(text, "󠁒", "R")
+	text := StrReplace(text, "󠁓", "S")
+	text := StrReplace(text, "󠁔", "T")
+	text := StrReplace(text, "󠁕", "U")
+	text := StrReplace(text, "󠁖", "V")
+	text := StrReplace(text, "󠁗", "W")
+	text := StrReplace(text, "󠁘", "X")
+	text := StrReplace(text, "󠁙", "Y")
+	text := StrReplace(text, "󠁚", "Z")
+	text := StrReplace(text, "󠀰", "0")
+	text := StrReplace(text, "󠀱", "1")
+	text := StrReplace(text, "󠀲", "2")
+	text := StrReplace(text, "󠀳", "3")
+	text := StrReplace(text, "󠀴", "4")
+	text := StrReplace(text, "󠀵", "5")
+	text := StrReplace(text, "󠀶", "6")
+	text := StrReplace(text, "󠀷", "7")
+	text := StrReplace(text, "󠀸", "8")
+	text := StrReplace(text, "󠀹", "9")
+	text := StrReplace(text, "󠀡", "!")
+	text := StrReplace(text, "󠁀", "@")
+	text := StrReplace(text, "󠀣", "#")
+	text := StrReplace(text, "󠀤", "$")
+	text := StrReplace(text, "󠀥", "%")
+	text := StrReplace(text, "󠁞", "^")
+	text := StrReplace(text, "󠀦", "&")
+	text := StrReplace(text, "󠀪", "*")
+	text := StrReplace(text, "󠀨", "(")
+	text := StrReplace(text, "󠀩", ")")
+	text := StrReplace(text, "󠁠", "``")
+	text := StrReplace(text, "󠁾", "~")
+	text := StrReplace(text, "󠀭", "-")
+	text := StrReplace(text, "󠁟", "_")
+	text := StrReplace(text, "󠀽", "=")
+	text := StrReplace(text, "󠀫", "+")
+	text := StrReplace(text, "󠁛", "[")
+	text := StrReplace(text, "󠁻", "{")
+	text := StrReplace(text, "󠁝", "]")
+	text := StrReplace(text, "󠁽", "}")
+	text := StrReplace(text, "󠁜", "\")
+	text := StrReplace(text, "󠁼", "|")
+	text := StrReplace(text, "󠀻", ";")
+	text := StrReplace(text, "󠀺", ":")
+	text := StrReplace(text, "󠀧", "'")
+	text := StrReplace(text, "󠀢", '"')
+	text := StrReplace(text, "󠀬", ",")
+	text := StrReplace(text, "󠀼", "<")
+	text := StrReplace(text, "󠀮", ".")
+	text := StrReplace(text, "󠀾", ">")
+	text := StrReplace(text, "󠀯", "/")
+	text := StrReplace(text, "󠀿", "?")
+	Send "{Backspace " . backspaceCount . "}{Raw}" . text
+}
+
+; Bulk hidden characters
+::hide:: {
+	GatherInput(&text, &backspaceCount)
+	
+	charMap := Map()
+	charMap.Set( "a","󠁡", "b","󠁢", "c","󠁣", "d","󠁤", "e","󠁥", "f","󠁦", "g","󠁧", "h","󠁨", "i","󠁩", "j","󠁪", "k","󠁫", "l","󠁬", "m","󠁭", "n","󠁮", "o","󠁯", "p","󠁰", "q","󠁱", "r","󠁲", "s","󠁳", "t","󠁴", "u","󠁵", "v","󠁶", "w","󠁷", "x","󠁸", "y","󠁹", "z","󠁺", " ","󠀠", "A","󠁁", "B","󠁂", "C","󠁃", "D","󠁄", "E","󠁅", "F","󠁆", "G","󠁇", "H","󠁈", "I","󠁉", "J","󠁊", "K","󠁋", "L","󠁌", "M","󠁍", "N","󠁎", "O","󠁏", "P","󠁐", "Q","󠁑", "R","󠁒", "S","󠁓", "T","󠁔", "U","󠁕", "V","󠁖", "W","󠁗", "X","󠁘", "Y","󠁙", "Z","󠁚", "0","󠀰", "1","󠀱", "2","󠀲", "3","󠀳", "4","󠀴", "5","󠀵", "6","󠀶", "7","󠀷", "8","󠀸", "9","󠀹", "!","󠀡", "@","󠁀", "#","󠀣", "$","󠀤", "%","󠀥", "^","󠁞", "&","󠀦", "*","󠀪", "(","󠀨", ")","󠀩", "``","󠁠", "~","󠁾", "-","󠀭", "_","󠁟", "=","󠀽", "+","󠀫", "[","󠁛", "{","󠁻", "]","󠁝", "}","󠁽", "\","󠁜", "|","󠁼", ";","󠀻", ":","󠀺", "'","󠀧", '"',"󠀢", ",","󠀬", "<","󠀼", ".","󠀮", ">","󠀾", "/","󠀯", "?","󠀿" )
+	
+	out := ""
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
+	
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
+
+; Bulk monospace characters
+::monospace:: {
+	GatherInput(&text, &backspaceCount)
+	
+	charMap := Map()
+	charMap.Set( "a","ａ", "b","ｂ", "c","ｃ", "d","ｄ", "e","ｅ", "f","ｆ", "g","ｇ", "h","ｈ", "i","ｉ", "j","ｊ", "k","ｋ", "l","ｌ", "m","ｍ", "n","ｎ", "o","ｏ", "p","ｐ", "q","ｑ", "r","ｒ", "s","ｓ", "t","ｔ", "u","ｕ", "v","ｖ", "w","ｗ", "x","ｘ", "y","ｙ", "z","ｚ", " ","　", "A","Ａ", "B","Ｂ", "C","Ｃ", "D","Ｄ", "E","Ｅ", "F","Ｆ", "G","Ｇ", "H","Ｈ", "I","Ｉ", "J","Ｊ", "K","Ｋ", "L","Ｌ", "M","Ｍ", "N","Ｎ", "O","Ｏ", "P","Ｐ", "Q","Ｑ", "R","Ｒ", "S","Ｓ", "T","Ｔ", "U","Ｕ", "V","Ｖ", "W","Ｗ", "X","Ｘ", "Y","Ｙ", "Z","Ｚ", "0","０", "1","１", "2","２", "3","３", "4","４", "5","５", "6","６", "7","７", "8","８", "9","９", "!","！", "|","｜", '"',"＂", "#","＃", "$","＄", "%","％", "&","＆", "'","＇", "(","（", ")","）", "*","＊", "+","＋", ",","，", "-","－", ".","．", "/","／", ":","：", ";","；", "<","＜", "=","＝", ">","＞", "?","？", "@","＠", "[","［", "\","＼", "]","］", "^","＾", "_","＿", "``","｀", "{","｛", "}","｝", "~","～" )
+	
+	out := ""
+	Loop Parse text {
+		out .= charMap.Has(A_LoopField) ? charMap[A_LoopField] : A_LoopField
+	}
+	
+	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
+
 ; Bulk morse code, periods and hyphens
 ::morse2:: {
 	GatherInput(&text, &backspaceCount)
@@ -1738,6 +1882,16 @@ GatherInput(&text, &backspaceCount, maxInputLength := 1000) {
 	}
 	
 	Send "{Backspace " . backspaceCount . "}{Raw}" . out
+}
+
+
+:*B0:potksedD:: {
+	if WinWait('TightVNC Viewer', , 5)
+		WinMaximize('TightVNC Viewer')
+}
+:*B0:p064tT460p:: {
+	if WinWait('TightVNC Viewer', , 5)
+		WinMaximize('TightVNC Viewer')
 }
 
 
