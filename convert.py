@@ -1,4 +1,4 @@
-from calc import evaluate
+from calc import Calc
 
 # Formats user input to make sure it's a number, remove leading and trailing
 # whitespace, and remove leading 0s. Purposely uses string operations to
@@ -8,7 +8,7 @@ def format_val(value):
     try:
         float(value)
     except ValueError:
-        value = evaluate(value)
+        value = Calc().evaluate(value)
         try:
             float(value)
         except ValueError:

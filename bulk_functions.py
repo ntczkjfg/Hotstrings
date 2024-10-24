@@ -108,7 +108,6 @@ def smallcaps2(user_input = None):
         if len(words[i]) > 0:
             words[i] = words[i][0].upper() + ''.join(translation_dict.get(char.upper(), char) for char in words[i][1:])
     output = ' '.join(words)
-    print(output)
     return output
 
 def boldcursive(user_input = None):

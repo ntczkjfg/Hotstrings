@@ -5,7 +5,7 @@ import time
 import pyperclip
 import json
 
-from calc import calc, solve, func, var, calculator
+from calc import Calc
 from convert import convert
 from bulk_functions import *
 from unit_tests import unit_tests
@@ -23,13 +23,13 @@ class Hotstrings:
         self.bulk = None
         self.cwd = Path.cwd()
         self.settings_path = self.cwd / 'settings.json'
+        self.calc = Calc(self)
         if self.settings_path.exists():
             self.load_settings()
         else:
             self.endchar = '\\'
             self.save_settings()
         self.last_output = ''
-        self.skip_list = ['shift', 'left shift', 'right shift', 'caps lock']
         hotstrings_path = Path.cwd() / 'hotstrings.json'
         if hotstrings_path.exists():
             with open(hotstrings_path, 'r', encoding='utf-8') as f:
@@ -49,8 +49,8 @@ class Hotstrings:
             'boldcursive': boldcursive,
             'bolditalic': bolditalic,
             'braille': braille,
-            'calc': calc,
-            'calculator': calculator,
+            'calc': self.calc.calc,
+            'calculator': self.calc.calculator,
             '##': colors_to_hex,
             'convert': convert,
             'cursive': cursive,
@@ -72,7 +72,7 @@ class Hotstrings:
             'rune2': rune2,
             'smallcaps': smallcaps,
             'smallcaps2': smallcaps2,
-            'solve': solve,
+            'solve': self.calc.solve,
             '__': subscript,
             '^^': superscript,
             'test': self.test_hotstrings,
@@ -97,15 +97,16 @@ class Hotstrings:
             for key, value in user_vars.items():
                 if type(value) is str:
                     user_vars[key] = complex(value)
-            var(user_vars)
+            self.calc.user_vars = user_vars
         if 'user_funcs_raw' in settings:
-            func(settings['user_funcs_raw'])
+            self.calc.user_funcs_raw = settings['user_funcs_raw']
+        self.calc.update_user_funcs()
     
     def save_settings(self):
         settings = {}
         settings['endchar'] = self.endchar
-        settings['user_vars'] = var(None).copy()
-        settings['user_funcs_raw'] = func(None)
+        settings['user_vars'] = self.calc.user_vars
+        settings['user_funcs_raw'] = self.calc.user_funcs_raw
         for key, value in settings['user_vars'].items():
             if type(value) is complex:
                 settings['user_vars'][key] = str(value)
@@ -230,8 +231,8 @@ class Hotstrings:
 
     # Handles all input
     def gather_input(self, event):
-        if self.paused or event.name in self.skip_list:
-            # Do nothing if we're paused or the event is something we've marked as wanting to skip
+        if self.paused:
+            # Do nothing if we're paused
             return
         if event.name == self.endchar:
             # User typed the endchar!
@@ -239,17 +240,13 @@ class Hotstrings:
                 # We were already gathering input for a bulk function - time to process that input
                 # Combine everything typed into one string
                 text = self.get_typed_string(self.bulk['input'])
-                #text = '\r\n'.join(list(text))
                 # Keep track of how much to backspace (+1 for endchar)
                 backspace_count = len(text) + 1
-                # Special built-in variable: _ in user input gets changed to the last input
-                # Wrapped in parenthesis for calc to prevent calculation errors
-                if self.bulk['func'] == calc or self.bulk['func'] == calculator:
-                    text = text.replace('_', calc('last'))
-                    print(f'{text = }')
-                else:
+                # Special built-in variable: _ in user input gets changed to the last output
+                # calculator stuff handles this in a custom way
+                if getattr(self.bulk['func'], '__self__', None) is not self.calc:
                     text = text.replace('_', self.last_output)
-                if not text and self.bulk['func'] != calculator:
+                if not text and self.bulk['func'] is not self.calc.calculator:
                     # If nothing was typed, pull from the clipboard
                     text = pyperclip.paste()
                     if len(text) > self.bulk['max']:
@@ -259,21 +256,17 @@ class Hotstrings:
                 try:
                     # Send the input to the function
                     output = self.bulk['func'](text)
-                    if self.bulk['func'] == calculator and output == 'end_calculator':
+                    if self.bulk['func'] is self.calc.calculator and output == 'end_calculator':
                         self.bulk['func'] = None
                         output = ''
                     # Backspace all the user input
                     for _ in range(backspace_count):
                         keyboard.press_and_release('backspace')
-                    if output == 'self.save_settings()':
-                        # This is how calc indicates changes were made to user_vars or user_funcs that need saving
-                        self.save_settings()
-                    else:
-                        # Write the function output
-                        self.write(output)
+                    # Write the function output
+                    self.write(output)
                 finally:
                     # Stop bulk collection
-                    if self.bulk['func'] != calculator:
+                    if self.bulk['func'] is not self.calc.calculator:
                         self.bulk = None
                     else:
                         self.bulk['input'] = []
@@ -282,7 +275,6 @@ class Hotstrings:
                 # Not in a bulk function, so check for a normal hotstring
                 # Combine everything typed into one string
                 text = self.get_typed_string(self.user_input)
-                #text = '\r\n'.join(list(text))
                 try:
                     # Send it off to check if it contains a valid hotstring
                     self.check_hotstrings(text)
@@ -307,7 +299,7 @@ class Hotstrings:
         fails = 0
         for hs_dict in [self.Hotstrings, self.hotstrings, self.callables]:
             for hs, rp in hs_dict.items():
-                output = self.check_hotstrings('kljfasdf643al; sda33sdv' + hs, testing = True)
+                output = self.check_hotstrings(hs, testing = True)
                 if output == rp:
                     passes += 1
                 else:
@@ -361,6 +353,7 @@ class Hotstrings:
                 self.write(rp)
 
     def pasted(self):
+        # Custom way I store paste events - clipboard data in the device parameter
         event = keyboard.KeyboardEvent('down', 29, 'paste', device = pyperclip.paste())
         if self.bulk:
             self.bulk['input'].append(event)
