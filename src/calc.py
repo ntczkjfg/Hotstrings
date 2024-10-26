@@ -162,7 +162,7 @@ class Calc:
                 output += '\nNo user vars.'
             return output
         elif user_input in ['funcs', 'functions']:
-            output = 'Default functions: exp, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh, sqrt, cbrt, ln, log, ceil, floor, factorial, gamma, comb, perm, radians, degrees'
+            output = 'Default functions: exp, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh, sqrt, cbrt, ln, log, ceil, floor, factorial, gamma, comb, perm, radians, degrees, round (among others)'
             if self.user_funcs_raw:
                 output += '\nUser functions: '
                 for user_func in self.user_funcs_raw.values():

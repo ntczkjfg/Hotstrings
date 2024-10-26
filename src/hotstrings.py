@@ -1,4 +1,5 @@
 import keyboard
+import mouse
 from collections import deque
 from pathlib import Path
 import time
@@ -10,12 +11,17 @@ from calc import Calc
 from convert import convert
 from bulk_functions import *
 from unit_tests import unit_tests
+from macro_settings import Macro_Settings
 
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QInputDialog, QMessageBox
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtGui import QIcon
 
-class Hotstrings:
+class Hotstrings(QObject):
+    spawn_signal = pyqtSignal()
     def __init__(self):
+        super().__init__()
+        self.spawn_signal.connect(self.spawn_window)
         self.app = QApplication([])
         self.restart = False
         # Track Paused state
@@ -29,6 +35,7 @@ class Hotstrings:
             self.load_settings()
         else:
             self.endchar = '\\'
+            self.user_macros = {}
             self.save_settings()
         self.last_output = ''
         self.load_hotstrings()
@@ -50,12 +57,17 @@ class Hotstrings:
             'hide': hide,
             'italic': italic,
             'lookalike': lookalike,
+            'macros': self.macros,
             'mock': mock,
             'mock2': mock2,
             'mono': mono,
             'morse': morse,
             'morse2': morse2,
+            'play': self.play,
             'python': python,
+            'record': self.record,
+            'recordk': lambda: self.record(record_mouse = False),
+            'recordm': lambda: self.record(record_keyboard = False),
             'rot13': rot13,
             'rune': rune,
             'rune2': rune2,
@@ -75,11 +87,147 @@ class Hotstrings:
             'unrune2': unrune2
         }
         maxlen = 0
-        for key in self.Hotstrings | self.hotstrings | self.callables:
+        for key in self.Hotstrings | self.hotstrings | self.callables | self.user_macros:
             maxlen = max(maxlen, len(key))
-        self.user_input = deque(maxlen = maxlen + 1)
+        self.user_input = deque(maxlen = maxlen + 20)
         self.create_tray_icon()
+        self.create_hooks()
 
+    def macros(self):
+        output = []
+        for macro in self.user_macros:
+            output.append(macro)
+        if output:
+            output = 'User macros: ' + ', '.join(output)
+        else:
+            output = 'No user macros defined.'
+        self.write(output)
+
+    def spawn_window(self):
+        try:
+            self.settings = Macro_Settings(self, self.events)
+            self.settings.show()
+            del self.events
+        except Exception as e:
+            print(e)
+            raise e
+
+    def serialize_events(self):
+        first_time = self.events[0].time
+        for i, event in enumerate(self.events):
+            if isinstance(event, mouse.ButtonEvent):
+                event = {'event': 'button',
+                         'name': event.button,
+                         'type': event.event_type,
+                         'time': event.time - first_time}
+            elif isinstance(event, mouse.MoveEvent):
+                event = {'event': 'move',
+                         'x': event.x,
+                         'y': event.y,
+                         'time': event.time - first_time}
+            elif isinstance(event, mouse.WheelEvent):
+                event = {'event': 'wheel',
+                         'delta': event.delta,
+                         'time': event.time - first_time}
+            elif isinstance(event, keyboard.KeyboardEvent):
+                event = {'event': 'key',
+                         'scan_code': event.scan_code,
+                         'name': event.name,
+                         'type': event.event_type,
+                         'time': event.time - first_time}
+            else:
+                raise TypeError(f'Unknown event type: {event}')
+            self.events[i] = event
+    
+    def record(self, event = None, record_keyboard = True, record_mouse = True):
+        if event:
+            if event.name == self.endchar and event.event_type == keyboard.KEY_DOWN:
+                self.create_hooks()
+                # It will usually catch the keyboard up event for the endchar that activated recording
+                # So find and remove it
+                for i, event in enumerate(self.events):
+                    if isinstance(event, keyboard.KeyboardEvent):
+                        if event.name == self.endchar and event.event_type is keyboard.KEY_UP:
+                            del self.events[i]
+                        break
+                # Make self.events json-serializable
+                self.serialize_events()
+                # Remove the endchar
+                keyboard.press_and_release('backspace')
+                self.spawn_signal.emit()
+            else:
+                self.events.append(event)
+        else:
+            self.events = []
+            keyboard.unhook_all()
+            mouse.unhook_all()
+            keyboard.hook(lambda event: self.record(event, record_keyboard, record_mouse))
+            if record_mouse:
+                mouse.hook(self.events.append)
+
+    def play(self, events, hotkey = 'ctrl+c', speed_factor = 1.0, repeat_count = float('inf')):
+        state = keyboard.stash_state()
+        keyboard.unhook_all()
+        keys = hotkey.split('+')
+        while True:
+            breakout = True
+            for key in keys:
+                if keyboard.is_pressed(key):
+                    breakout = False
+            if breakout:
+                break
+            time.sleep(0.01)
+        while repeat_count > 0:
+            last_time = None
+            for event in events:
+                if keyboard.is_pressed(hotkey):
+                    while keyboard.is_pressed(hotkey):
+                        time.sleep(0.01)
+                    return self.create_hooks()
+                if speed_factor and last_time:
+                    # Max out at 250 characters/second or else it can lock up programs
+                    go_time = time.time() + max((event['time'] - last_time) / speed_factor, 0.004)
+                    while (current_time := time.time()) < go_time:
+                        if keyboard.is_pressed(hotkey):
+                            while keyboard.is_pressed(hotkey):
+                                time.sleep(0.01)
+                            return self.create_hooks()
+                        time.sleep(min(0.01, go_time - current_time))
+                last_time = event['time']
+                
+                if event['event'] == 'button':
+                    mouse._os_mouse.release(event['name']) if event['type'] is mouse.UP else mouse._os_mouse.press(event['name'])
+                elif event['event'] == 'move':
+                    mouse._os_mouse.move_to(event['x'], event['y'])
+                elif event['event'] == 'wheel':
+                    mouse._os_mouse.wheel(event['delta'])
+                elif event['event'] == 'key':
+                    key = event['scan_code'] or event['name']
+                    keyboard.press(key) if event['type'] == keyboard.KEY_DOWN else keyboard.release(key)
+            repeat_count -= 1
+        self.create_hooks()
+    
+    def create_hooks(self):
+        mouse.unhook_all()
+        keyboard.unhook_all()
+        keyboard.on_press(self.gather_input)
+        keyboard.add_hotkey('win+z', self.toggle_pause)
+        keyboard.add_hotkey('ctrl+v', self.pasted)
+        for macro in self.user_macros.values():
+            hotkey = macro['hotkey']
+            events = macro['events']
+            speed_factor = macro['speed_factor']
+            repeat_count = macro['repeat_count']
+            # Using a lambda of the return statement below has weird pass-by-reference issues here
+            # Could still use a lambda with arguments with default values, as is done here
+            # This is just prettier at that point, though
+            def f(events = events,
+                  hotkey = hotkey,
+                  speed_factor = speed_factor,
+                  repeat_count = repeat_count):
+                return self.play(events=events, hotkey=hotkey, speed_factor=speed_factor, repeat_count=repeat_count)
+            keyboard.add_hotkey(hotkey, f)
+    
     def load_hotstrings(self):
         # Prefer a hotstrings.json in the cwd if it exists
         hotstrings_path = self.cwd / 'hotstrings.json'
@@ -103,10 +251,14 @@ class Hotstrings:
         with open(self.settings_path, 'r', encoding='utf-8') as f:
             settings = json.load(f)
         self.endchar = settings['endchar']
+        if 'user_macros' in settings:
+            self.user_macros = settings['user_macros']
+        else:
+            self.user_macros = {}
         if 'user_vars' in settings:
             user_vars = settings['user_vars']
             for key, value in user_vars.items():
-                if type(value) is str:
+                if isinstance(value, str):
                     user_vars[key] = complex(value)
             self.calc.user_vars = user_vars
         if 'user_funcs_raw' in settings:
@@ -119,8 +271,9 @@ class Hotstrings:
         settings['user_vars'] = self.calc.user_vars
         settings['user_funcs_raw'] = self.calc.user_funcs_raw
         for key, value in settings['user_vars'].items():
-            if type(value) is complex:
+            if isinstance(value, complex):
                 settings['user_vars'][key] = str(value)
+        settings['user_macros'] = self.user_macros
         with open(self.settings_path, 'w', encoding='utf-8') as f:
             json.dump(settings, f, indent=4, ensure_ascii=False)
     
@@ -226,6 +379,8 @@ class Hotstrings:
         typed_string = []
         insert_pos = 0
         for i, event in enumerate(user_input):
+            if not isinstance(event, keyboard.KeyboardEvent):
+                continue
             if event.name == 'v':
                 if i > 0 and user_input[i-1].name == 'paste':
                     continue
@@ -369,19 +524,30 @@ class Hotstrings:
             if callable(rp):
                 # It's a function - call it, and gather its output
                 output = rp()
-                if type(output) == dict:
+                if isinstance(output, dict):
                     # If it returns a dict, it's a bulk function that needs more input to work
                     # Finish these universal parts of the dict
                     self.bulk = output
                     self.bulk['func'] = rp
                     self.bulk['start'] = time.time()
                     self.bulk['input'] = []
-                elif type(output) == str:
+                elif isinstance(output, str):
                     # If it returns a string, no further input is needed - just write the output!
                     self.write(output)
             else:
                 # It was a basic hotstring - write the output! 
                 self.write(rp)
+        else:
+            for macro in self.user_macros:
+                command = f'delete macro {macro}'
+                if typed_string.lower().endswith(command):
+                    for _ in range(len(command) + 1):
+                        keyboard.press_and_release('backspace')
+                    del self.user_macros[macro]
+                    self.save_settings()
+                    self.create_hooks()
+                    self.write(f'Deleted macro {macro}')
+                    return
 
     def pasted(self):
         # Custom way I store paste events - clipboard data in the device parameter
@@ -408,9 +574,6 @@ class Hotstrings:
 
 def main():
     app = Hotstrings()
-    keyboard.on_press(app.gather_input)
-    keyboard.add_hotkey('win+z', app.toggle_pause)
-    keyboard.add_hotkey('ctrl+v', app.pasted)
     app.run()
 
 if __name__ == '__main__':
