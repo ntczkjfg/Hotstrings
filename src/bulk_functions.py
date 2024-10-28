@@ -10,10 +10,19 @@ def delete_macro(hotstrings, user_input = None):
         hotstrings.user_macros = {}
         output = 'Deleted all macros'
     elif user_input in hotstrings.user_macros:
+        index = list(hotstrings.user_macros.keys()).index(user_input) + 1
         del hotstrings.user_macros[user_input]
-        output = f'Deleted macro {user_input}'
+        output = f'Deleted macro {index}: {user_input}'
     else:
-        return 'Invalid macro'
+        try:
+            user_input = int(user_input)
+            if user_input < 1 or user_input > len(hotstrings.user_macros):
+                raise ValueError
+            macro_to_delete = list(hotstrings.user_macros.keys())[user_input - 1]
+            del hotstrings.user_macros[macro_to_delete]
+            output = f'Deleted macro {user_input}: {macro_to_delete}'
+        except ValueError:
+            return 'Invalid macro'
     hotstrings.save_settings()
     hotstrings.create_hooks()
     return output

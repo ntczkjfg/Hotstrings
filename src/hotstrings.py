@@ -22,7 +22,7 @@ from macro_settings import Macro_Settings
 
 
 logging.basicConfig(
-    filename='hotstrings.log', 
+    filename='log.txt', 
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -112,10 +112,10 @@ class Hotstrings(QObject):
     
     def macros(self):
         output = []
-        for macro in self.user_macros:
-            output.append(macro)
+        for i, macro in enumerate(self.user_macros, start = 1):
+            output.append(f'{i}: {macro}')
         if output:
-            output = 'User macros: ' + ', '.join(output)
+            output = 'User macros:\n' + '\n'.join(output)
         else:
             output = 'No user macros defined.'
         self.write(output)
@@ -445,7 +445,6 @@ class Hotstrings(QObject):
         if event.name == self.endchar:
             # User typed the endchar!
             if self.bulk:
-                x = 4/0
                 # We were already gathering input for a bulk function - time to process that input
                 # Combine everything typed into one string
                 text = self.get_typed_string(self.bulk['input'])
