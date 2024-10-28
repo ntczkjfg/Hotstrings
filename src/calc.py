@@ -109,11 +109,15 @@ class Calc:
             if e.args[0] == 'ZeroLogError':
                 return 'Error: log of 0'
             raise e
-        if type(output) is complex:
+        if isinstance(output, complex):
             if output.imag == 0:
                 output = output.real
                 if output == int(output):
                     output = int(output)
+        elif isinstance(output, str):
+            if output[:2] in ['0b', '0o', '0x']:
+                return output
+            raise ValueError(f'Unexpected string output: {output}')
         elif output == int(output):
             output = int(output)
         real = round(output.real, 12)
@@ -269,65 +273,65 @@ class Calc:
 
 # Custom logic for each of the following to use math version when possible, and cmath version otherwise
 def exp(x):
-    return cmath.exp(x) if type(x) is complex else math.exp(x)
+    return cmath.exp(x) if isinstance(x, complex) else math.exp(x)
 
 def sin(x):
-    return cmath.sin(x) if type(x) is complex else math.sin(x)
+    return cmath.sin(x) if isinstance(x, complex) else math.sin(x)
 def cos(x):
-    return cmath.cos(x) if type(x) is complex else math.cos(x)
+    return cmath.cos(x) if isinstance(x, complex) else math.cos(x)
 def tan(x):
-    return cmath.tan(x) if type(x) is complex else math.tan(x)
+    return cmath.tan(x) if isinstance(x, complex) else math.tan(x)
 def asin(x):
-    if (type(x) is complex
+    if (isinstance(x, complex)
         or x < -1
         or x > 1):
         return cmath.asin(x)
     return math.asin(x)
 def acos(x):
-    if (type(x) is complex
+    if (isinstance(x, complex)
         or x < -1
         or x > 1):
         return cmath.acos(x)
     return math.acos(x)
 def atan(x):
-    return cmath.atan(x) if type(x) is complex else math.atan(x)
+    return cmath.atan(x) if isinstance(x, complex) else math.atan(x)
 
 def sinh(x):
-    return cmath.sinh(x) if type(x) is complex else math.sinh(x)
+    return cmath.sinh(x) if isinstance(x, complex) else math.sinh(x)
 def cosh(x):
-    return cmath.cosh(x) if type(x) is complex else math.cosh(x)
+    return cmath.cosh(x) if isinstance(x, complex) else math.cosh(x)
 def tanh(x):
-    return cmath.tanh(x) if type(x) is complex else math.tanh(x)
+    return cmath.tanh(x) if isinstance(x, complex) else math.tanh(x)
 def asinh(x):
-    return cmath.asinh(x) if type(x) is complex else math.asinh(x)
+    return cmath.asinh(x) if isinstance(x, complex) else math.asinh(x)
 def acosh(x):
-    if (type(x) is complex
+    if (isinstance(x, complex)
         or x < 1):
         return cmath.acosh(x)
     return math.acosh(x)
 def atanh(x):
-    if (type(x) is complex
+    if (isinstance(x, complex)
         or x <= -1
         or x >= 1):
         return cmath.atanh(x)
     return math.atanh(x)
 
 def sqrt(x):
-    if (type(x) is complex
+    if (isinstance(x, complex)
         or x < 0):
         return cmath.sqrt(x)
     return math.sqrt(x)
 def log(x):
     if x == 0:
         raise Exception('ZeroLogError')
-    if (type(x) is complex
+    if (isinstance(x, complex)
         or x < 0):
         return cmath.log(x)
     return math.log(x)
 def log10(x):
     if x == 0:
         raise Exception('ZeroLogError')
-    if (type(x) is complex
+    if (isinstance(x, complex)
         or x < 0):
         return cmath.log10(x)
     return math.log10(x)

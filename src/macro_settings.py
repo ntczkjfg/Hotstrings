@@ -3,6 +3,13 @@ from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 import keyboard
 from time import sleep
+import logging
+
+logging.basicConfig(
+    filename='log.txt', 
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 class Macro_Settings(QWidget):
     def __init__(self, hotstrings = None, events = None):
@@ -164,18 +171,25 @@ class Macro_Settings(QWidget):
         self.close()
     
     def handle_detect_button(self):
-        self.detect_button.setText('Listening..')
-        self.detect_button.setEnabled(False)
-        QApplication.processEvents()
-        keyboard.unhook_all()
-        state = keyboard.stash_state()
-        hotkey = keyboard.read_hotkey()
-        keyboard.restore_modifiers(state)
-        self.hotstrings.create_hooks()
-        self.hotkey_textbox.setText(hotkey)
-        self.detect_button.setEnabled(True)
-        self.detect_button.setText('Detect')
-        self.validate_settings()
+        try:
+            self.detect_button.setText('Listening..')
+            self.detect_button.setEnabled(False)
+            QApplication.processEvents()
+            keyboard.unhook_all()
+            state = keyboard.stash_state()
+            try:
+                hotkey = keyboard.read_hotkey()
+            except ValueError:
+                # Caused when Fn key is pressed
+                hotkey = ''
+            keyboard.restore_modifiers(state)
+            self.hotstrings.create_hooks()
+            self.hotkey_textbox.setText(hotkey)
+            self.detect_button.setEnabled(True)
+            self.detect_button.setText('Detect')
+            self.validate_settings()
+        except Exception:
+            logging.exception('Unhandled exception in handle_detect_button')
 
 if __name__ == "__main__":
     app = QApplication([])

@@ -317,12 +317,12 @@ class Hotstrings(QObject):
         self.tray_icon = QSystemTrayIcon(QIcon(self.normal_icon))
         
         # Set hover text
-        self.tray_icon.setToolTip("Hotstrings")
+        self.tray_icon.setToolTip('Hotstrings')
         
         # Create the context menu
         self.menu = QMenu()
         # Add Pause option to context menu
-        self.pause_action = QAction("Pause", self.app)
+        self.pause_action = QAction('Pause', self.app)
         self.pause_action.triggered.connect(self.toggle_pause)
         self.menu.addAction(self.pause_action)
         # Add Change endchar option to context menu
@@ -330,7 +330,7 @@ class Hotstrings(QObject):
         endchar_change.triggered.connect(self.change_endchar)
         self.menu.addAction(endchar_change)
         # Add Exit option to context menu
-        exit_action = QAction("Exit", self.app)
+        exit_action = QAction('Exit', self.app)
         exit_action.triggered.connect(self.exit_app)
         self.menu.addAction(exit_action)
         # Add the context menu to the system tray icon
@@ -364,12 +364,12 @@ class Hotstrings(QObject):
     def toggle_pause(self):
         self.paused = not self.paused
         if self.paused:
-            self.tray_icon.setToolTip("Hotstrings - PAUSED")
-            self.pause_action.setText("Unpause")
+            self.tray_icon.setToolTip('Hotstrings - PAUSED')
+            self.pause_action.setText('Unpause')
             self.tray_icon.setIcon(QIcon(self.paused_icon))
         else:
-            self.tray_icon.setToolTip("Hotstrings")
-            self.pause_action.setText("Pause")
+            self.tray_icon.setToolTip('Hotstrings')
+            self.pause_action.setText('Pause')
             self.tray_icon.setIcon(QIcon(self.normal_icon))
     
     def exit_app(self):
@@ -442,6 +442,9 @@ class Hotstrings(QObject):
         if self.paused:
             # Do nothing if we're paused
             return
+        if event.scan_code == 99:
+            # Function key, event.name == None by default
+            event.name = 'fn'
         if event.name == self.endchar:
             # User typed the endchar!
             if self.bulk:
