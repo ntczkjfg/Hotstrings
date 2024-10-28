@@ -1,6 +1,23 @@
 import random
 import re
 
+def delete_macro(hotstrings, user_input = None):
+    if not user_input:
+        return {'func': lambda user_input = None: delete_macro(hotstrings, user_input),
+                'max': 500,
+                'time': 90}
+    if user_input == 'all':
+        hotstrings.user_macros = {}
+        output = 'Deleted all macros'
+    elif user_input in hotstrings.user_macros:
+        del hotstrings.user_macros[user_input]
+        output = f'Deleted macro {user_input}'
+    else:
+        return 'Invalid macro'
+    hotstrings.save_settings()
+    hotstrings.create_hooks()
+    return output
+
 def superscript(user_input = None):
     if not user_input:
         return {'func': superscript,

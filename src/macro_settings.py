@@ -24,11 +24,10 @@ class Macro_Settings(QWidget):
         self.slider.setValue(9)
         self.speed_label_right = QLabel()
         self.speed_label_right.setFixedWidth(40)
-        self.change_slider(self.slider.value())
         
         # Update the right label as the slider moves
         self.slider.valueChanged.connect(self.change_slider)
-        
+                
         playback_speed_layout.addWidget(self.speed_label_left)
         playback_speed_layout.addWidget(self.slider)
         playback_speed_layout.addWidget(self.speed_label_right)
@@ -48,9 +47,11 @@ class Macro_Settings(QWidget):
         self.n_textbox.textChanged.connect(self.validate_n)
         self.n = ''
         self.n_textbox.setEnabled(False)
-        
-        # Enable QLineEdit only when radio_button5 is selected
+
+        self.radio_once.toggled.connect(self.validate_settings)
+        # Enable toggle_n_textbox only when radio_n is selected
         self.radio_n.toggled.connect(self.toggle_n_textbox)
+        self.radio_inf.toggled.connect(self.validate_settings)
         
         # Arrange radio buttons in group 3
         repeat_layout.addWidget(self.radio_once)
@@ -69,7 +70,6 @@ class Macro_Settings(QWidget):
         self.hotkey_label = QLabel("Start/stop on this combo:")
         self.hotkey_textbox = QLineEdit()
         self.hotkey_textbox.setEnabled(False)
-        #self.hotkey_textbox.setText('')
         self.detect_button = QPushButton("Detect")
         self.detect_button.clicked.connect(self.handle_detect_button)
         
@@ -82,6 +82,7 @@ class Macro_Settings(QWidget):
         # OK and Cancel buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.button_box.accepted.connect(self.accept)
+        self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
         self.button_box.rejected.connect(self.reject)
         
         # Add widgets to main layout
@@ -90,22 +91,34 @@ class Macro_Settings(QWidget):
         main_layout.addWidget(self.hotkey_box)
         main_layout.addWidget(self.button_box)
         self.setGeometry(100, 100, 1, 1)
+
+        self.change_slider(self.slider.value())
+
+    def validate_settings(self):
+        if self.hotkey_textbox.text() == '':
+            return self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+        if self.radio_n.isChecked() and self.n_textbox.text() == '':
+            return self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+        if self.radio_inf.isChecked() and self.speed_label_right.text() == 'infx':
+            return self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+        return self.button_box.button(QDialogButtonBox.Ok).setEnabled(True)
     
     def toggle_n_textbox(self, checked):
         self.n_textbox.setEnabled(checked)
+        self.validate_settings()
     
     def validate_n(self, value):
         value = value.lstrip('0')
-        if value == '':
+        if value == '' or value == self.n:
             self.n_textbox.setText(value)
-            self.n = ''
-            return
+            self.n = value
+            return self.validate_settings()
         if not value.isnumeric():
             self.n_textbox.setText(self.n)
-            return
+            return self.validate_settings()
         if '.' in value:
             self.n_textbox.setText(self.n)
-            return
+            return self.validate_settings()
         try:
             value_int = int(value)
             value_float = float(value)
@@ -114,9 +127,10 @@ class Macro_Settings(QWidget):
             if value_int <= 0:
                 raise Exception
             self.n = str(value_int)
+            self.validate_settings()
         except:
             self.n_textbox.setText(self.n)
-            return
+            return self.validate_settings()
     
     def change_slider(self, value):
         mapping_dict = {0: 0.1, 1: 0.2, 2: 0.3, 3: 0.4, 4: 0.5, 5: 0.6, 6: 0.7, 7: 0.8, 8: 0.9, 9: 1,
@@ -125,6 +139,7 @@ class Macro_Settings(QWidget):
                         28: 40, 29: 50, 30: 60, 31: 70, 32: 80, 33: 90, 34: 100, 35: 'inf'}
         value = mapping_dict[value]
         self.speed_label_right.setText(f'{value}x')
+        self.validate_settings()
     
     def accept(self):
         speed_factor = float(self.speed_label_right.text()[:-1])
@@ -160,6 +175,7 @@ class Macro_Settings(QWidget):
         self.hotkey_textbox.setText(hotkey)
         self.detect_button.setEnabled(True)
         self.detect_button.setText('Detect')
+        self.validate_settings()
 
 if __name__ == "__main__":
     app = QApplication([])

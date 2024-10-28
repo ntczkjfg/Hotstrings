@@ -1,21 +1,31 @@
-import keyboard
-import mouse
+import json
+import logging
+import sys
+import time
 from collections import deque
 from pathlib import Path
-import time
+import re
+
+import keyboard
+import mouse
 import pyperclip
-import json
-import sys
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QMenu,
+                             QAction, QInputDialog, QMessageBox)
 
 from calc import Calc
 from convert import convert
-from bulk_functions import *
+import bulk_functions as bulk
 from unit_tests import unit_tests
 from macro_settings import Macro_Settings
 
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QInputDialog, QMessageBox
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QIcon
+
+logging.basicConfig(
+    filename='hotstrings.log', 
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 class Hotstrings(QObject):
     spawn_signal = pyqtSignal()
@@ -40,59 +50,66 @@ class Hotstrings(QObject):
         self.last_output = ''
         self.load_hotstrings()
         self.callables = {
-            'bb': blackboard_bold,
-            'bold': bold,
-            'boldcursive': boldcursive,
-            'bolditalic': bolditalic,
-            'braille': braille,
+            'bb': bulk.blackboard_bold,
+            'bold': bulk.bold,
+            'boldcursive': bulk.boldcursive,
+            'bolditalic': bulk.bolditalic,
+            'braille': bulk.braille,
             'calc': self.calc.calc,
             'calculator': self.calc.calculator,
-            '##': colors_to_hex,
+            '##': bulk.colors_to_hex,
             'convert': convert,
-            'cursive': cursive,
-            'flip': flip,
-            'hearts': hearts,
-            'hearts2': hearts2,
-            '#': hex_to_colors,
-            'hide': hide,
-            'italic': italic,
-            'lookalike': lookalike,
+            'cursive': bulk.cursive,
+            'delete macro': lambda user_input = None: bulk.delete_macro(self, user_input),
+            'delete macros': lambda: bulk.delete_macro(self, 'all'),
+            'flip': bulk.flip,
+            'funcs': lambda: self.calc.calc('funcs'),
+            'functions': lambda: self.calc.calc('funcs'),
+            'hearts': bulk.hearts,
+            'hearts2': bulk.hearts2,
+            '#': bulk.hex_to_colors,
+            'hide': bulk.hide,
+            'italic': bulk.italic,
+            'lookalike': bulk.lookalike,
             'macros': self.macros,
-            'mock': mock,
-            'mock2': mock2,
-            'mono': mono,
-            'morse': morse,
-            'morse2': morse2,
+            'mock': bulk.mock,
+            'mock2': bulk.mock2,
+            'mono': bulk.mono,
+            'morse': bulk.morse,
+            'morse2': bulk.morse2,
             'play': self.play,
-            'python': python,
+            'python': bulk.python,
             'record': self.record,
             'recordk': lambda: self.record(record_mouse = False),
             'recordm': lambda: self.record(record_keyboard = False),
-            'rot13': rot13,
-            'rune': rune,
-            'rune2': rune2,
-            'smallcaps': smallcaps,
-            'smallcaps2': smallcaps2,
+            'rot13': bulk.rot13,
+            'rune': bulk.rune,
+            'rune2': bulk.rune2,
+            'smallcaps': bulk.smallcaps,
+            'smallcaps2': bulk.smallcaps2,
             'solve': self.calc.solve,
-            '__': subscript,
-            '^^': superscript,
+            '__': bulk.subscript,
+            '^^': bulk.superscript,
             'test': self.test_hotstrings,
-            'unbraille': unbraille,
-            'underline': underline,
-            'unhide': unhide,
-            'U+': unicode,
+            'unbraille': bulk.unbraille,
+            'underline': bulk.underline,
+            'unhide': bulk.unhide,
+            'U+': bulk.unicode,
             'unittest': unit_tests,
-            'unmorse': unmorse,
-            'unrune': unrune,
-            'unrune2': unrune2
+            'unmorse': bulk.unmorse,
+            'unrune': bulk.unrune,
+            'unrune2': bulk.unrune2,
+            'vars': lambda: self.calc.calc('vars')
         }
+        # Make sure the user_input deque is large enough to handle the largest valid hotstring
+        # Make it double that length to account for things like user backspaces, arrow keys, etc
         maxlen = 0
         for key in self.Hotstrings | self.hotstrings | self.callables | self.user_macros:
             maxlen = max(maxlen, len(key))
-        self.user_input = deque(maxlen = maxlen + 20)
+        self.user_input = deque(maxlen = 2*maxlen)
         self.create_tray_icon()
         self.create_hooks()
-
+    
     def macros(self):
         output = []
         for macro in self.user_macros:
@@ -102,16 +119,12 @@ class Hotstrings(QObject):
         else:
             output = 'No user macros defined.'
         self.write(output)
-
+    
     def spawn_window(self):
-        try:
-            self.settings = Macro_Settings(self, self.events)
-            self.settings.show()
-            del self.events
-        except Exception as e:
-            print(e)
-            raise e
-
+        self.settings = Macro_Settings(self, self.events)
+        self.settings.show()
+        del self.events
+    
     def serialize_events(self):
         first_time = self.events[0].time
         for i, event in enumerate(self.events):
@@ -147,7 +160,7 @@ class Hotstrings(QObject):
                 # So find and remove it
                 for i, event in enumerate(self.events):
                     if isinstance(event, keyboard.KeyboardEvent):
-                        if event.name == self.endchar and event.event_type is keyboard.KEY_UP:
+                        if event.name == self.endchar and event.event_type == keyboard.KEY_UP:
                             del self.events[i]
                         break
                 # Make self.events json-serializable
@@ -155,6 +168,7 @@ class Hotstrings(QObject):
                 # Remove the endchar
                 keyboard.press_and_release('backspace')
                 self.spawn_signal.emit()
+                self.restart = True
             else:
                 self.events.append(event)
         else:
@@ -165,7 +179,7 @@ class Hotstrings(QObject):
             if record_mouse:
                 mouse.hook(self.events.append)
 
-    def play(self, events, hotkey = 'ctrl+c', speed_factor = 1.0, repeat_count = float('inf')):
+    def play(self, hotkey, events, speed_factor, repeat_count):
         state = keyboard.stash_state()
         keyboard.unhook_all()
         keys = hotkey.split('+')
@@ -183,34 +197,36 @@ class Hotstrings(QObject):
                 if keyboard.is_pressed(hotkey):
                     while keyboard.is_pressed(hotkey):
                         time.sleep(0.01)
+                    keyboard.restore_modifiers(state)
                     return self.create_hooks()
                 if speed_factor and last_time:
-                    # Max out at 250 characters/second or else it can lock up programs
-                    go_time = time.time() + max((event['time'] - last_time) / speed_factor, 0.004)
+                    go_time = time.time() + (event['time'] - last_time) / speed_factor
                     while (current_time := time.time()) < go_time:
                         if keyboard.is_pressed(hotkey):
                             while keyboard.is_pressed(hotkey):
                                 time.sleep(0.01)
+                            keyboard.restore_modifiers(state)
                             return self.create_hooks()
                         time.sleep(min(0.01, go_time - current_time))
                 last_time = event['time']
                 
                 if event['event'] == 'button':
-                    mouse._os_mouse.release(event['name']) if event['type'] is mouse.UP else mouse._os_mouse.press(event['name'])
+                    mouse.release(event['name']) if event['type'] == mouse.UP else mouse.press(event['name'])
                 elif event['event'] == 'move':
-                    mouse._os_mouse.move_to(event['x'], event['y'])
+                    mouse.move(event['x'], event['y'])
                 elif event['event'] == 'wheel':
-                    mouse._os_mouse.wheel(event['delta'])
+                    mouse.wheel(event['delta'])
                 elif event['event'] == 'key':
                     key = event['scan_code'] or event['name']
                     keyboard.press(key) if event['type'] == keyboard.KEY_DOWN else keyboard.release(key)
             repeat_count -= 1
-        self.create_hooks()
+        keyboard.restore_modifiers(state)
+        return self.create_hooks()
     
     def create_hooks(self):
         mouse.unhook_all()
         keyboard.unhook_all()
-        keyboard.on_press(self.gather_input)
+        keyboard.on_press(self.gather_input_1)
         keyboard.add_hotkey('win+z', self.toggle_pause)
         keyboard.add_hotkey('ctrl+v', self.pasted)
         for macro in self.user_macros.values():
@@ -218,15 +234,7 @@ class Hotstrings(QObject):
             events = macro['events']
             speed_factor = macro['speed_factor']
             repeat_count = macro['repeat_count']
-            # Using a lambda of the return statement below has weird pass-by-reference issues here
-            # Could still use a lambda with arguments with default values, as is done here
-            # This is just prettier at that point, though
-            def f(events = events,
-                  hotkey = hotkey,
-                  speed_factor = speed_factor,
-                  repeat_count = repeat_count):
-                return self.play(events=events, hotkey=hotkey, speed_factor=speed_factor, repeat_count=repeat_count)
-            keyboard.add_hotkey(hotkey, f)
+            keyboard.add_hotkey(hotkey, self.play, args = [hotkey, events, speed_factor, repeat_count])
     
     def load_hotstrings(self):
         # Prefer a hotstrings.json in the cwd if it exists
@@ -414,7 +422,21 @@ class Hotstrings(QObject):
                 typed_string.insert(insert_pos, event.device)
                 insert_pos += 1
         return ''.join(typed_string)
-
+    
+    def gather_input_1(self, event):
+        try:
+            self.gather_input(event)
+        except Exception:
+            error_message = ['Unhandled exception in gather_input']
+            if self.bulk:
+                error_message.append(f'{self.bulk = }')
+                error_message.append(f'{self.bulk["func"].__name__ = }')
+                error_message.append(f'{self.bulk["input"] = }')
+                error_message.append(f'{self.get_typed_string(self.bulk["input"]) = }')
+            error_message.append(f'{self.user_input = }')
+            error_message.append(f'{self.get_typed_string(self.user_input) = }')
+            logging.exception('\n'.join(error_message))
+    
     # Handles all input
     def gather_input(self, event):
         if self.paused:
@@ -423,6 +445,7 @@ class Hotstrings(QObject):
         if event.name == self.endchar:
             # User typed the endchar!
             if self.bulk:
+                x = 4/0
                 # We were already gathering input for a bulk function - time to process that input
                 # Combine everything typed into one string
                 text = self.get_typed_string(self.bulk['input'])
@@ -450,6 +473,11 @@ class Hotstrings(QObject):
                         keyboard.press_and_release('backspace')
                     # Write the function output
                     self.write(output)
+                except:
+                    error_message = ['Unhandled exception when processing bulk input']
+                    error_message.append(f'{self.bulk["func"].__name__ = }')
+                    error_message.append(f'{text = }')
+                    logging.exception('\n'.join(error_message))
                 finally:
                     # Stop bulk collection
                     if self.bulk['func'] is not self.calc.calculator:
@@ -464,6 +492,10 @@ class Hotstrings(QObject):
                 try:
                     # Send it off to check if it contains a valid hotstring
                     self.check_hotstrings(text)
+                except Exception as e:
+                    error_message = ['Unhandled exception in check_hotstrings']
+                    error_message.append(f'{text = }')
+                    logging.exception('\n'.join(error_message))
                 finally:
                     # Ensure user_input gets cleared, so further endchar presses don't activate the same one
                     self.user_input.clear()
@@ -537,18 +569,7 @@ class Hotstrings(QObject):
             else:
                 # It was a basic hotstring - write the output! 
                 self.write(rp)
-        else:
-            for macro in self.user_macros:
-                command = f'delete macro {macro}'
-                if typed_string.lower().endswith(command):
-                    for _ in range(len(command) + 1):
-                        keyboard.press_and_release('backspace')
-                    del self.user_macros[macro]
-                    self.save_settings()
-                    self.create_hooks()
-                    self.write(f'Deleted macro {macro}')
-                    return
-
+    
     def pasted(self):
         # Custom way I store paste events - clipboard data in the device parameter
         event = keyboard.KeyboardEvent('down', 29, 'paste', device = pyperclip.paste())
@@ -577,4 +598,7 @@ def main():
     app.run()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception:
+        logging.exception('Unhandled exception in main')
