@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QRadioButton, QSlider, QLabel, QLineEdit, QPushButton, QDialogButtonBox
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QRadioButton, QSlider, QLabel, QLineEdit, QPushButton, QDialogButtonBox, QCheckBox
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 import keyboard
@@ -12,12 +12,13 @@ logging.basicConfig(
 )
 
 class Macro_Settings(QWidget):
-    def __init__(self, hotstrings = None, events = None):
+    def __init__(self, hotstrings = None, events = None, macro = None):
         super().__init__()
         self.setWindowTitle("Macro settings")
         
         self.hotstrings = hotstrings
         self.events = events
+        self.macro = macro
         
         # Main layout
         main_layout = QVBoxLayout(self)
@@ -44,6 +45,7 @@ class Macro_Settings(QWidget):
         self.repeat_box = QGroupBox("How many times should the macro play?")
         repeat_layout = QVBoxLayout()
         n_layout = QHBoxLayout()
+        inf_layout = QHBoxLayout()
         
         self.radio_once = QRadioButton("Once")
         self.radio_n = QRadioButton("This many times:")
@@ -55,9 +57,12 @@ class Macro_Settings(QWidget):
         self.n = ''
         self.n_textbox.setEnabled(False)
 
+        self.skip_paths_checkbox = QCheckBox('Remove mouse paths')
+
         self.radio_once.toggled.connect(self.validate_settings)
         # Enable toggle_n_textbox only when radio_n is selected
         self.radio_n.toggled.connect(self.toggle_n_textbox)
+        self.radio_n.toggled.connect(self.validate_settings)
         self.radio_inf.toggled.connect(self.validate_settings)
         
         # Arrange radio buttons in group 3
@@ -67,8 +72,11 @@ class Macro_Settings(QWidget):
         n_layout.addWidget(self.radio_n)
         n_layout.addWidget(self.n_textbox)
         repeat_layout.addLayout(n_layout)
+
+        inf_layout.addWidget(self.radio_inf)
+        inf_layout.addWidget(self.skip_paths_checkbox)
+        repeat_layout.addLayout(inf_layout)
         
-        repeat_layout.addWidget(self.radio_inf)
         self.repeat_box.setLayout(repeat_layout)
         
         # Hotkey box with Label, QLineEdit, and Button
@@ -100,6 +108,43 @@ class Macro_Settings(QWidget):
         self.setGeometry(100, 100, 1, 1)
 
         self.change_slider(self.slider.value())
+
+        if self.macro:
+            self.set_macro()
+    
+    def set_macro(self):
+        mapping_dict = {0.1: 0, 0.2: 1, 0.3: 2, 0.4: 3, 0.5: 4, 0.6: 5, 0.7: 6,
+                        0.8: 7, 0.9: 8, 1: 9, 1.1: 10, 1.25: 11, 1.5: 12, 1.75: 13,
+                        2: 14, 2.5: 15, 3: 16, 4: 17, 5: 18, 6: 19, 7: 20, 8: 21,
+                        9: 22, 10: 23, 15: 24, 20: 25, 25: 26, 30: 27, 40: 28, 50: 29,
+                        60: 30, 70: 31, 80: 32, 90: 33, 100: 34, float('inf'): 35}
+        self.hotkey_textbox.setText(self.macro['hotkey'])
+        speed_factor = mapping_dict[self.macro['speed_factor']]
+        self.slider.setValue(speed_factor)
+        self.change_slider(speed_factor)
+        repeat_count = self.macro['repeat_count']
+        if repeat_count == 1:
+            self.radio_once.setChecked(True)
+            self.radio_n.setChecked(False)
+            self.radio_inf.setChecked(False)
+            self.n_textbox.setEnabled(False)
+        elif repeat_count == float('inf'):
+            self.radio_once.setChecked(False)
+            self.radio_n.setChecked(False)
+            self.radio_inf.setChecked(True)
+            self.n_textbox.setEnabled(False)
+        else:
+            self.radio_once.setChecked(False)
+            self.radio_n.setChecked(True)
+            self.radio_inf.setChecked(False)
+            self.n_textbox.setEnabled(True)
+            self.n_textbox.setText(str(repeat_count))
+            self.n = repeat_count
+        skip_paths = self.macro['skip_paths']
+        self.skip_paths_checkbox.setChecked(skip_paths)
+        self.events = self.macro['events']
+        
+        
 
     def validate_settings(self):
         if self.hotkey_textbox.text() == '':
@@ -149,6 +194,7 @@ class Macro_Settings(QWidget):
         self.validate_settings()
     
     def accept(self):
+        hotkey = self.hotkey_textbox.text()
         speed_factor = float(self.speed_label_right.text()[:-1])
         if self.radio_once.isChecked():
             repeat_count = 1
@@ -156,19 +202,24 @@ class Macro_Settings(QWidget):
             repeat_count = int(self.n_textbox.text())
         elif self.radio_inf.isChecked():
             repeat_count = float('inf')
-        hotkey = self.hotkey_textbox.text()
+        skip_paths = self.skip_paths_checkbox.isChecked()
         args = {'hotkey': hotkey,
                 'speed_factor': speed_factor,
                 'repeat_count': repeat_count,
+                'skip_paths': skip_paths,
                 'events': self.events}
+        if self.macro:
+            del self.hotstrings.user_macros[self.macro['hotkey']]
         self.hotstrings.user_macros[hotkey] = args
         self.hotstrings.save_settings()
         self.hotstrings.load_settings()
         self.hotstrings.create_hooks()
         self.close()
+        del self.hotstrings.settings
     
     def reject(self):
         self.close()
+        del self.hotstrings.settings
     
     def handle_detect_button(self):
         try:
