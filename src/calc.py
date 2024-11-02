@@ -200,7 +200,7 @@ class Calc:
         output = output + self.last_output
         return output
 
-    def solve(user_input = None):
+    def solve(self, user_input = None):
         if not user_input:
             return {'func': self.solve,
                     'max': 500,
@@ -208,7 +208,7 @@ class Calc:
         equation = self.format_expression(user_input).split('=')
         equation = f'{equation[0]} - ({equation[1]})'
         def f(x):
-            return float(evaluate(equation.replace('x', f'({x})')))
+            return float(self.evaluate(equation.replace('x', f'({x})')))
         def df(x, h=1e-10):
             return (f(x + h) - f(x)) / h
         x = 0.01
@@ -225,7 +225,7 @@ class Calc:
         else:
             return 'No solution found'
         self.last_output = str(round(x, 10))
-        return self.last_output
+        return 'x = ' + self.last_output
 
     def func(self, match):
         func_name = match.group(1)
