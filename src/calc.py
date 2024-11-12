@@ -396,7 +396,7 @@ class Calc:
             del self.user_vars[func_name]
         self.update_user_funcs()
         self.hotstrings.save_settings()
-        return f'{func_name}({func_args}) = {func_expr}'
+        return f'{func_name}({func_args}) = {self.format_nicely(func_expr)}'
     
     def make_rational(self, x):
         """
