@@ -168,6 +168,8 @@ class Calc:
         i = 1j
         try:
             output = eval(expression, globals() | self.user_vars | self.user_funcs, locals())
+        except SyntaxError:
+            return 'Error: Invalid syntax'
         except ZeroDivisionError:
             return 'Error: Division by zero'
         except NameError as e:
@@ -180,8 +182,10 @@ class Calc:
             # Output like: 'invalid_function_name' is not defined
             return f'Error: {e.args[0][5:]}'
         except Exception as e:
-            if e.args[0] == 'ZeroLogError':
+            if e.args[0] == 'LogZeroError':
                 return 'Error: log of 0'
+            elif e.args[0] == 'LogBaseError':
+                return 'Error: base 1 log'
             raise e
         # If it's complex, check if it's actually complex - if it's not, make it real, then check if it's also an integer
         if isinstance(output, complex):
@@ -287,8 +291,6 @@ class Calc:
         expression = re.sub(r'([\d.)])([a-df-zA-DF-Z]|e(?![-+]?\d+))', r'\1*\2', expression)
         # Letter followed by dot is implied multiplication: x.3 → x*.3
         expression = re.sub(r'([a-df-zA-DF-Z]|e(?!-?\d+))(\.)', r'\1*\2', expression)
-        #  Turn 3(4+5) into 3*(4+5)
-        expression = re.sub(r'(?<![a-z0-9_])([\d]+)\(', r'\1*(', expression)
         # Turn (4+5)3 into (4+5)*3
         expression = re.sub(r'\)(\d|\.)', r')*\1', expression)
         # Turn (3+4)(5+6) into (3+4)*(5+6)
@@ -338,7 +340,7 @@ class Calc:
             expression = expression[:first_index] + 'abs(' + expression[first_index + 1:]
             second_index = expression.index('|')
             expression = expression[:second_index] + ')' + expression[second_index + 1:]
-        while match := re.search(r'log_([\d]+?)\(', expression):
+        while match := re.search(r'log_(-?[\d]*\.[\d]+?)\(', expression):
             base = match.group(1)
             # start_index marks the l in log
             start_index = expression.index('log_')
@@ -356,6 +358,9 @@ class Calc:
             # log_expr has the full contents of the log, including the parenthesis
             log_expr = expression[start_index + len(base) + 4:end_index + 1]
             expression = expression[:start_index] + f'log({log_expr},{base})' + expression[end_index + 1:]
+        #  Turn 3(4+5) into 3*(4+5)
+        # If this is placed earlier, before the log stuff, it causes way too many issues
+        expression = re.sub(r'(\d)\(', r'\1*(', expression)
         # Earlier on we substituted out binary, octal, and hex values - substitute them back in now
         for key, value in bin_oct_hex.items():
             expression = expression.replace(key, value)
@@ -618,14 +623,17 @@ def sqrt(x):
     return math.sqrt(x)
 def log(x, base = e):
     if x == 0:
-        raise Exception('ZeroLogError')
+        raise Exception('LogZeroError')
+    if base == 1:
+        raise Exception('LogBaseError')
     if (isinstance(x, complex)
-        or x < 0):
+        or x < 0
+        or base < 0):
         return cmath.log(x, base)
     return math.log(x, base)
 def log10(x):
     if x == 0:
-        raise Exception('ZeroLogError')
+        raise Exception('LogZeroError')
     if (isinstance(x, complex)
         or x < 0):
         return cmath.log10(x)
