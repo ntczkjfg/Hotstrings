@@ -111,7 +111,7 @@ class Calc:
         # If user_input ends in =, write result as an equation
         if user_input.endswith('='):
             user_input = user_input[:-1]
-            output += user_input + ' = '
+            output += self.format_nicely(self.format_expression(user_input)) + ' = '
         # If there's still an = in the input, check if they're trying to define a function or variable, or solve an equation
         if '=' in user_input:
             if match := re.match(r'^([a-z]+[a-z0-9]*)\(((?:[a-z]+[a-z0-9_]*,)*(?:[a-z]+[a-z0-9_]*))\)=(.+)$', user_input):
@@ -277,12 +277,18 @@ class Calc:
                 key = str(random.randint(1000000, 2000000))
             bin_oct_hex[key] = match.group(1)
             expression = expression.replace(match.group(1), key)
+        if expression.count(')') > expression.count('('):
+            # Can't easily fix that
+            raise SyntaxError("unmatched ')'")
+        while expression.count('(') > expression.count(')'):
+            # If they didn't close parenthesis, just tack them onto the end and hope that's what they meant
+            expression = expression + ')'
         # Number dot or close paren followed by a letter is implied multiplication: 3sin → 3*sin
         expression = re.sub(r'([\d.)])([a-df-zA-DF-Z]|e(?![-+]?\d+))', r'\1*\2', expression)
         # Letter followed by dot is implied multiplication: x.3 → x*.3
         expression = re.sub(r'([a-df-zA-DF-Z]|e(?!-?\d+))(\.)', r'\1*\2', expression)
         #  Turn 3(4+5) into 3*(4+5)
-        expression = re.sub(r'(\d)\(', r'\1*(', expression)
+        expression = re.sub(r'(?<![a-z_])([\d]+)\(', r'\1*(', expression)
         # Turn (4+5)3 into (4+5)*3
         expression = re.sub(r'\)(\d|\.)', r')*\1', expression)
         # Turn (3+4)(5+6) into (3+4)*(5+6)
@@ -295,7 +301,7 @@ class Calc:
         expression = expression.replace('fact(', 'factorial(')
         expression = expression.replace('rad(', 'radians(')
         expression = expression.replace('deg(', 'degrees(')
-        expression = expression.replace('log', 'log10')
+        expression = expression.replace('log(', 'log10(')
         expression = expression.replace('ln', 'log')
         expression = expression.replace('^', '**')
         expression = expression.replace('[', '(').replace(']', ')')
@@ -332,6 +338,24 @@ class Calc:
             expression = expression[:first_index] + 'abs(' + expression[first_index + 1:]
             second_index = expression.index('|')
             expression = expression[:second_index] + ')' + expression[second_index + 1:]
+        while match := re.search(r'log_([\d]+?)\(', expression):
+            base = match.group(1)
+            # start_index marks the l in log
+            start_index = expression.index('log_')
+            base = match.group(1)
+            unclosed_parens = 1
+            for i in range(start_index + len(base) + 5, len(expression)):
+                if expression[i] == '(':
+                    unclosed_parens += 1
+                elif expression[i] == ')':
+                    unclosed_parens -= 1
+                if unclosed_parens == 0:
+                    end_index = i
+                    break
+            # end_index marks the closing )
+            # log_expr has the full contents of the log, including the parenthesis
+            log_expr = expression[start_index + len(base) + 4:end_index + 1]
+            expression = expression[:start_index] + f'log({log_expr},{base})' + expression[end_index + 1:]
         # Earlier on we substituted out binary, octal, and hex values - substitute them back in now
         for key, value in bin_oct_hex.items():
             expression = expression.replace(key, value)
@@ -592,13 +616,13 @@ def sqrt(x):
         or x < 0):
         return cmath.sqrt(x)
     return math.sqrt(x)
-def log(x):
+def log(x, base = e):
     if x == 0:
         raise Exception('ZeroLogError')
     if (isinstance(x, complex)
         or x < 0):
-        return cmath.log(x)
-    return math.log(x)
+        return cmath.log(x, base)
+    return math.log(x, base)
 def log10(x):
     if x == 0:
         raise Exception('ZeroLogError')
