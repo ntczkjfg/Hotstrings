@@ -288,7 +288,7 @@ class Calc:
         # Letter followed by dot is implied multiplication: x.3 → x*.3
         expression = re.sub(r'([a-df-zA-DF-Z]|e(?!-?\d+))(\.)', r'\1*\2', expression)
         #  Turn 3(4+5) into 3*(4+5)
-        expression = re.sub(r'(?<![a-z_])([\d]+)\(', r'\1*(', expression)
+        expression = re.sub(r'(?<![a-z0-9_])([\d]+)\(', r'\1*(', expression)
         # Turn (4+5)3 into (4+5)*3
         expression = re.sub(r'\)(\d|\.)', r')*\1', expression)
         # Turn (3+4)(5+6) into (3+4)*(5+6)
