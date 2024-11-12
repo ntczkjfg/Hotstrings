@@ -74,6 +74,8 @@ class Hotstrings(QObject):
             'hide': bulk.hide,
             'italic': bulk.italic,
             'lookalike': bulk.lookalike,
+            'lower': bulk.lower,
+            'lower2': bulk.lower2,
             'macros': self.macros,
             'mock': bulk.mock,
             'mock2': bulk.mock2,
@@ -431,6 +433,8 @@ class Hotstrings(QObject):
             self.tray_icon.setIcon(QIcon(self.normal_icon))
     
     def exit_app(self):
+        keyboard.unhook_all()
+        mouse.unhook_all()
         self.tray_icon.hide()
         QApplication.quit()
         exit()
@@ -479,15 +483,15 @@ class Hotstrings(QObject):
             elif event.name == 'paste':
                 typed_string.insert(insert_pos, event.device)
                 insert_pos += 1
-        return ''.join(typed_string)
+        return ''.join(typed_string[:insert_pos])
     
     def gather_input_1(self, event):
         try:
             self.gather_input(event)
         except Exception:
             error_message = ['Unhandled exception in gather_input']
+            error_message.append(f'{self.bulk = }')
             if self.bulk:
-                error_message.append(f'{self.bulk = }')
                 error_message.append(f'{self.bulk["func"].__name__ = }')
                 error_message.append(f'{self.bulk["input"] = }')
                 error_message.append(f'{self.get_typed_string(self.bulk["input"]) = }')

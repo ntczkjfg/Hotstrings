@@ -211,6 +211,28 @@ def lookalike(user_input = None):
     output = ''.join(translation_dict.get(char, char) for char in user_input)
     return output
 
+def lower(user_input = None):
+    """Converts input into lowercase"""
+    # Because we all type a paragraph with caps on without noticing sometimes
+    if not user_input:
+        return {'func': lookalike,
+                'max': 500,
+                'time': 90}
+    output = user_input.lower()
+    return output
+
+def lower2(user_input = None):
+    """Converts input into lowercase, except first words in each sentence"""
+    # Because we all type a paragraph with caps on without noticing sometimes
+    if not user_input:
+        return {'func': lookalike,
+                'max': 500,
+                'time': 90}
+    output = user_input.lower()
+    output = output[0].upper() + output[1:]
+    output = re.sub(r'([.!?] *)([a-z])', lambda m: m.group(1) + m.group(2).upper(), output)
+    return output
+
 def mock(user_input = None):
     """Randomizes the case of each character in the input"""
     if not user_input:
