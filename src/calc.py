@@ -507,7 +507,7 @@ class Calc:
             # If they just provided an expression, not an equation, find its root
             user_input = user_input + '=0'
         # Turn left = right into left - (right) = 0
-        equation = self.format_expression(user_input).split('=')
+        equation = user_input.split('=')
         equation = f'{equation[0]} - ({equation[1]})'
         # Uses Newton's method
         def f(x):
