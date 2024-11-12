@@ -515,8 +515,9 @@ class Hotstrings(QObject):
                 # calculator stuff handles this in a custom way
                 if getattr(self.bulk['func'], '__self__', None) is not self.calc:
                     text = text.replace('_', self.last_output)
-                if not text and self.bulk['func'] is not self.calc.calculator:
+                if not text and self.bulk['func'] != self.calc.calculator:
                     # If nothing was typed, pull from the clipboard
+                    # Don't do that in self.calc.calculator because entering no input is how you quit
                     text = pyperclip.paste()
                     if len(text) > self.bulk['max']:
                         # Give up and do nothing if there's too much text in the clipboard
@@ -525,7 +526,7 @@ class Hotstrings(QObject):
                 try:
                     # Send the input to the function
                     output = self.bulk['func'](text)
-                    if self.bulk['func'] is self.calc.calculator and output == 'end_calculator':
+                    if self.bulk['func'] == self.calc.calculator and output == 'end_calculator':
                         self.bulk['func'] = None
                         output = ''
                     # Backspace all the user input
@@ -539,11 +540,10 @@ class Hotstrings(QObject):
                     logging.exception('\n'.join(error_message))
                 finally:
                     # Stop bulk collection
-                    if self.bulk['func'] is not self.calc.calculator:
+                    if self.bulk['func'] != self.calc.calculator:
                         self.bulk = None
                     else:
                         self.bulk['input'] = []
-                return
             else:
                 # Not in a bulk function, so check for a normal hotstring
                 # Combine everything typed into one string

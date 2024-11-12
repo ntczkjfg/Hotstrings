@@ -644,6 +644,7 @@
         "sharp": "♯",
         "natural": "♮",
         "nat": "♮",
+		"diamond": "♦",
 		
 		// Emoji
         "emoji": "️",
@@ -958,6 +959,8 @@
         "wet": "💦",
 		
 		// Objects
+		"crown": "👑",
+		"puzzle": "🧩",
         "alarm": "🚨",
         "alert": "🚨",
         "siren": "🚨",
@@ -986,7 +989,7 @@
         "gift": "🎁",
         "present": "🎁",
         "balloon": "🎈",
-        "diamond": "💎",
+        "diamond2": "💎",
         "bomb": "💣",
         "poop": "💩",
         "watch": "⌚",
