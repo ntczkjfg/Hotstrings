@@ -303,8 +303,6 @@ class Calc:
         expression = expression.replace('fact(', 'factorial(')
         expression = expression.replace('rad(', 'radians(')
         expression = expression.replace('deg(', 'degrees(')
-        expression = expression.replace('log(', 'log10(')
-        expression = expression.replace('ln', 'log')
         expression = expression.replace('^', '**')
         expression = expression.replace('[', '(').replace(']', ')')
         # Turn the factorial of variables, like x! and x_2!, into gamma function calls: gamma(x+1), gamma(x_2+1)
@@ -359,8 +357,10 @@ class Calc:
             log_expr = expression[start_index + len(base) + 4:end_index + 1]
             expression = expression[:start_index] + f'log({log_expr},{base})' + expression[end_index + 1:]
         #  Turn 3(4+5) into 3*(4+5)
-        # If this is placed earlier, before the log stuff, it causes way too many issues
+        # If these three lines are placed earlier, before the log stuff, it causes way too many issues
         expression = re.sub(r'(\d)\(', r'\1*(', expression)
+        expression = expression.replace('log(', 'log10(')
+        expression = expression.replace('ln', 'log')
         # Earlier on we substituted out binary, octal, and hex values - substitute them back in now
         for key, value in bin_oct_hex.items():
             expression = expression.replace(key, value)
@@ -373,7 +373,10 @@ class Calc:
         expression = re.sub(r'(\d)\*([a-zA-Z])', r'\1\2', expression) # 3*x → 3x
         expression = expression.replace('+', ' + ') # 3+4 → 3 + 4
         expression = expression.replace('-', ' - ') # 3-4 → 3 - 4
-        expression = expression.replace(' +  - ', ' + -') # 3 + - 4 → 3 + -4
+        expression = re.sub(r'^ - ', '-', expression) # ' - 3 + 4' → '-3 + 4'
+        expression = re.sub(r'([(^]) - ', r'\1-', expression) # ( - 3 + 4) → (-3 + 4) ^ 3^ - 4 → 3^-4
+        expression = re.sub(r' ([+-])  - ', r' \1 -', expression) # 3 +  - 4 → 3 + -4
+        expression = re.sub(r'([*/]) - ', r'\1-', expression) # 3* - 4 → 3*-4
         expression = expression.replace('log', 'ln') # log(3) → ln(3)
         expression = expression.replace('log10', 'log') # log10(3) → log(3)
         return expression
