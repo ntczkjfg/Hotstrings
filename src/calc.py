@@ -377,11 +377,30 @@ class Calc:
         # Convert to a string, and cut off after 10 decimal places
         # Rounding like 0.66666666667 would throw us off
         new_x = str(x[:decimal_index + 11])
-        # Very weak check for a repeating decimal - should make this more robust later
-        if match := re.search(r'(.+?)\1', new_x):
-            decimal_index = new_x.index('.')
+        decimal_part = new_x[decimal_index + 1:]
+        # Checks for a repeating decimal - wants at least 3 repeats
+        if match := re.search(r'(.+?)\1\1', decimal_part):
             match_index = new_x.index(match.group(1), decimal_index)
             match_len = len(match.group(1))
+            repeating_part = match.group(1)*3
+            # Below code tries to ensure we've actually found the repeating part of the decimal
+            if not new_x.endswith(repeating_part):
+                # Could be like 0.43743743743743
+                # Take off ending digits until it works
+                end = ''
+                temp_x = new_x
+                for _ in range(match_len - 1):
+                    end = temp_x[-1] + end
+                    temp_x = temp_x[:-1]
+                    if temp_x.endswith(repeating_part):
+                        # We removed enough that it now ends in the repeating part
+                        break
+                else:
+                    # It does not actually end in the repeating part, give up
+                    return x
+                if not repeating_part.startswith(end):
+                    # The bit we removed doesn't repeat with the rest of the repeating part - give up
+                    return x
             multiply_by = 10**(match_index - decimal_index - 1 + match_len)
             multiply_by_2 = 10**(match_index - decimal_index - 1)
             numerator = int(multiply_by * float(new_x)) - int(multiply_by_2 * float(new_x))

@@ -9,6 +9,7 @@ def unit_test(func, args, out):
 
 def unit_tests():
     calc = Calc().calc
+    solve = Calc().solve
     output = []
     output.append(unit_test(calc, '3+4', '7'))
     output.append(unit_test(calc, '3+4', '7'))
@@ -174,6 +175,9 @@ def unit_tests():
     output.append(unit_test(convert, '6.28318 radian degree', '360°'))
     output.append(unit_test(convert, '45 degree radian', '0.79 radians'))
     output.append(unit_test(convert, '0.707 radian degree', '40.51°'))
+    output.append(unit_test(solve, 'sin(x) = 0', 'x = 0'))
+    output.append(unit_test(solve, 'ln(x+1)/ln(2)-ln(x)/ln(2) = 4', 'x = 1/15'))
+    output.append(unit_test(solve, 'pi*x = 3', 'x ≈ 0.954929658551'))
     output.append('Done!')
     # Remove empty strings
     output = [i for i in output if i]
