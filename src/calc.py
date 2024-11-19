@@ -77,7 +77,7 @@ class Calc:
             return {'func': self.calc,
                     'max': 500,
                     'time': 90}
-        user_input = user_input.replace(' ', '')
+        user_input = user_input.replace(' ', '').lower()
         if user_input == 'clear':
             # Clears all user functions and variables
             return self.clear()

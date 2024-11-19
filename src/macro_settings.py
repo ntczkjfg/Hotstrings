@@ -195,6 +195,7 @@ class Macro_Settings(QWidget):
     
     def accept(self):
         hotkey = self.hotkey_textbox.text()
+        # [:-1] is because the label always ends in x, like "2x"
         speed_factor = float(self.speed_label_right.text()[:-1])
         if self.radio_once.isChecked():
             repeat_count = 1
