@@ -35,8 +35,9 @@ class Hotstrings(QObject):
         self.edit_macro_signal.connect(self.spawn_macro_settings)
         self.app = QApplication([])
         self.restart = False
-        # Track Paused state
+        # State flags
         self.paused = False
+        self.debug_flag = False
         # Used to help gather input for bulk functions
         self.bulk = None
         self.calc = Calc(self)
@@ -100,7 +101,6 @@ class Hotstrings(QObject):
             'underline': bulk.underline,
             'unhide': bulk.unhide,
             'U+': bulk.unicode,
-            'unittest': unit_tests,
             'unmorse': bulk.unmorse,
             'unrune': bulk.unrune,
             'unrune2': bulk.unrune2,
@@ -114,12 +114,12 @@ class Hotstrings(QObject):
         self.user_input = deque(maxlen = 2*maxlen)
         self.create_tray_icon()
         self.create_hooks()
-
+    
     def backspace(self, n):
         """Sends n backspace presses"""
         for _ in range(n):
             keyboard.press_and_release('backspace')
-
+    
     def change_endchar(self):
         """Changes the endchar"""
         text, ok = QInputDialog.getText(None, 'Change endchar', f'Enter the new endchar:')
@@ -135,7 +135,7 @@ class Hotstrings(QObject):
                 dlg.setWindowTitle('Setting endchar failed')
                 dlg.setText('Error: The endchar must be exactly 1 character. No changes made.')
                 dlg.exec()
-
+    
     def check_hotstrings(self, typed_string, testing = False):
         """Checks what the user typed to see if it contains a hotstring"""
         hs, rp = '', None
@@ -180,12 +180,16 @@ class Hotstrings(QObject):
             else:
                 # It was a basic hotstring - write the output! 
                 self.write(rp)
-
+        else:
+            if match := re.search(r'(-?[\d]*\.?[\d]*)([cCfF])$', typed_string):
+                # User input ended in a celsius or fahrenheit temperature like "14.7f" - convert it to the other
+                self.quickTemp(match)
+    
     def clear_input(self):
         """Clears user_input and ends any bulk collection"""
         self.user_input.clear()
         self.bulk = None
-
+    
     def create_hooks(self):
         """Removes any existing hooks, then creates all the usual ones"""
         mouse.unhook_all()
@@ -193,7 +197,7 @@ class Hotstrings(QObject):
         mouse.on_click(self.clear_input)
         mouse.on_right_click(self.clear_input)
         keyboard.unhook_all()
-        keyboard.on_press(self.gather_input_wrapper)
+        keyboard.on_press(self.handle_input_wrapper)
         keyboard.add_hotkey('win+z', self.toggle_pause)
         keyboard.add_hotkey('ctrl+v', self.pasted)
         for macro in self.user_macros.values():
@@ -203,7 +207,7 @@ class Hotstrings(QObject):
             repeat_count = macro['repeat_count']
             skip_paths = macro['skip_paths']
             keyboard.add_hotkey(hotkey, self.play, args = [hotkey, events, speed_factor, repeat_count, skip_paths])
-
+    
     def create_tray_icon(self):
         """Creates the system tray icon and context menu"""
         # Defines self.normal_icon and self.paused_icon
@@ -215,17 +219,17 @@ class Hotstrings(QObject):
         # Create the context menu
         self.menu = QMenu()
         # Add Pause option to context menu
-        self.pause_action = QAction('Pause', self.app)
-        self.pause_action.triggered.connect(self.toggle_pause)
-        self.menu.addAction(self.pause_action)
+        self.pause_menu_item = QAction('Pause', self.app)
+        self.pause_menu_item.triggered.connect(self.toggle_pause)
+        self.menu.addAction(self.pause_menu_item)
         # Add Change endchar option to context menu
         endchar_change = QAction('Change endchar', self.app)
         endchar_change.triggered.connect(self.change_endchar)
         self.menu.addAction(endchar_change)
         # Add Log Current State to context menu
-        log_state = QAction('Log Current State', self.app)
-        log_state.triggered.connect(self.log_state)
-        self.menu.addAction(log_state)
+        self.debug_menu_item = QAction('Enable Debug Logging', self.app)
+        self.debug_menu_item.triggered.connect(self.debug)
+        self.menu.addAction(self.debug_menu_item)
         # Add Exit option to context menu
         exit_action = QAction('Exit', self.app)
         exit_action.triggered.connect(self.exit_app)
@@ -236,6 +240,17 @@ class Hotstrings(QObject):
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
         # Display the tray icon
         self.tray_icon.show()
+    
+    def debug(self):
+        """Toggles the debug state on and off"""
+        if self.debug_flag:
+            # Turn debug logging off
+            self.debug_flag = False
+            self.debug_menu_item.setText('Enable Debug Logging')
+        else:
+            # Turn debug logging on
+            self.debug_flag = True
+            self.debug_menu_item.setText('Disable Debug Logging')
     
     def edit_macro(self, user_input = None):
         """Opens the Macro Settings window to edit an existing macro"""
@@ -254,7 +269,7 @@ class Hotstrings(QObject):
             self.edit_macro_signal.emit(macro)
         else:
             return 'Invalid macro'
-
+    
     def exit_app(self):
         """Quits the app"""
         keyboard.unhook_all()
@@ -262,7 +277,7 @@ class Hotstrings(QObject):
         self.tray_icon.hide()
         QApplication.quit()
         exit()
-
+    
     def find_tray_icons(self):
         """Locates .ico files to use for system tray icons, or uses default images if none are present"""
         # Define the system tray icons to be used normally, and when paused
@@ -290,8 +305,81 @@ class Hotstrings(QObject):
             self.normal_icon = QIcon(QApplication.style().standardIcon(QApplication.style().SP_ComputerIcon))
         if not self.paused_icon:
             self.paused_icon = QIcon(QApplication.style().standardIcon(QApplication.style().SP_ComputerIcon))
-
-    def gather_input(self, event):
+    
+    def get_typed_string(self, user_input, forgiving = False):
+        """Parses user_input to determine what the user likely actually typed"""
+        typed_string = []
+        # insert_pos is only necessary to support letting the user use the left and right arrow keys
+        insert_pos = 0
+        if len(user_input) == 0:
+            return ''
+        while user_input[0].name in ['left', 'right', 'backspace', 'up', 'down']:
+            # None of these events mess up the string logic when at the start of a string
+            # But removing them now allows the logic below to be simpler
+            del user_input[0]
+            if len(user_input) == 0:
+                return ''
+        for i, event in enumerate(user_input):
+            if not isinstance(event, keyboard.KeyboardEvent):
+                continue
+            if event.name == 'v':
+                if i > 0 and user_input[i-1].name == 'paste':
+                    # User hit ctrl+v to paste, and we handled this in the previous event - skip
+                    continue
+                typed_string.insert(insert_pos, event.name)
+                insert_pos += 1
+            elif len(event.name) == 1:
+                # User typed a regular character, insert it into their typed string
+                typed_string.insert(insert_pos, event.name)
+                insert_pos += 1
+            elif event.name == 'space':
+                typed_string.insert(insert_pos, ' ')
+                insert_pos += 1
+            elif event.name == 'left':
+                # Pressed the left key, move the insert position
+                insert_pos -= 1
+                if insert_pos < 0:
+                    # If they tried to move left of the first position, we have no
+                    # way of knowing what their input looks like - so just give up
+                    # Or if we're feeling forgiven, start over from here
+                    if not forgiving:
+                        return None
+                    typed_string = []
+                    insert_pos = 0
+            elif event.name == 'right':
+                insert_pos += 1
+                if insert_pos > len(typed_string):
+                    # If they tried to move right of the rightmost position, we have no
+                    # way of knowing what their input looks like - so just give up
+                    # Or if we're feeling forgiven, start over from here
+                    if not forgiving:
+                        return None
+                    typed_string = []
+                    insert_pos = 0
+            elif event.name in ['up', 'down']:
+                # Both of these keys make it impossible to accurately
+                # determine what the user input looks like, give up
+                # Or if we're feeling forgiven, start over from here
+                if not forgiving:
+                    return None
+                typed_string = []
+                insert_pos = 0
+            elif event.name == 'backspace':
+                if insert_pos >= 1:
+                    del typed_string[insert_pos - 1]
+                    insert_pos -= 1
+            elif event.name == 'enter':
+                typed_string.insert(insert_pos, '\n')
+                insert_pos += 1
+            elif event.name == 'tab':
+                typed_string.insert(insert_pos, '\t')
+                insert_pos += 1
+            elif event.name == 'paste':
+                typed_string.insert(insert_pos, event.device)
+                insert_pos += 1
+        return ''.join(typed_string[:insert_pos])
+    
+    def handle_input(self, event):
         """Handles all input"""
         if self.paused:
             # Do nothing if we're paused
@@ -376,13 +464,15 @@ class Hotstrings(QObject):
         else:
             # Regular input, just toss it in the queue
             self.user_input.append(event)
-
-    def gather_input_wrapper(self, event):
-        """Calls gather_input, logs current state in event of errors"""
+    
+    def handle_input_wrapper(self, event):
+        """Calls handle_input, logs current state in event of errors"""
         try:
-            self.gather_input(event)
+            if self.debug_flag: self.log_state()
+            self.handle_input(event)
+            if self.debug_flag: self.log_state()
         except Exception:
-            error_message = ['Unhandled exception in gather_input']
+            error_message = ['Unhandled exception in handle_input']
             error_message.append(f'{self.bulk = }')
             if self.bulk:
                 error_message.append(f'{self.bulk["func"].__name__ = }')
@@ -394,80 +484,7 @@ class Hotstrings(QObject):
             error_message.append(f'{self.get_typed_string(self.user_input, forgiving = True) = }')
             error_message.append('')
             logging.exception('\n'.join(error_message))
-
-    def get_typed_string(self, user_input, forgiving = False):
-        """Parses user_input to determine what the user likely actually typed"""
-        typed_string = []
-        # insert_pos is only necessary to support letting the user use the left and right arrow keys
-        insert_pos = 0
-        if len(user_input) == 0:
-            return ''
-        while user_input[0].name in ['left', 'right', 'backspace', 'up', 'down']:
-            # None of these events mess up the string logic when at the start of a string
-            # But removing them now allows the logic below to be simpler
-            del user_input[0]
-            if len(user_input) == 0:
-                return ''
-        for i, event in enumerate(user_input):
-            if not isinstance(event, keyboard.KeyboardEvent):
-                continue
-            if event.name == 'v':
-                if i > 0 and user_input[i-1].name == 'paste':
-                    # User hit ctrl+v to paste, and we handled this in the previous event - skip
-                    continue
-                typed_string.insert(insert_pos, event.name)
-                insert_pos += 1
-            elif len(event.name) == 1:
-                # User typed a regular character, insert it into their typed string
-                typed_string.insert(insert_pos, event.name)
-                insert_pos += 1
-            elif event.name == 'space':
-                typed_string.insert(insert_pos, ' ')
-                insert_pos += 1
-            elif event.name == 'left':
-                # Pressed the left key, move the insert position
-                insert_pos -= 1
-                if insert_pos < 0:
-                    # If they tried to move left of the first position, we have no
-                    # way of knowing what their input looks like - so just give up
-                    # Or if we're feeling forgiven, start over from here
-                    if not forgiving:
-                        return None
-                    typed_string = []
-                    insert_pos = 0
-            elif event.name == 'right':
-                insert_pos += 1
-                if insert_pos > len(typed_string):
-                    # If they tried to move right of the rightmost position, we have no
-                    # way of knowing what their input looks like - so just give up
-                    # Or if we're feeling forgiven, start over from here
-                    if not forgiving:
-                        return None
-                    typed_string = []
-                    insert_pos = 0
-            elif event.name in ['up', 'down']:
-                # Both of these keys make it impossible to accurately
-                # determine what the user input looks like, give up
-                # Or if we're feeling forgiven, start over from here
-                if not forgiving:
-                    return None
-                typed_string = []
-                insert_pos = 0
-            elif event.name == 'backspace':
-                if insert_pos >= 1:
-                    del typed_string[insert_pos - 1]
-                    insert_pos -= 1
-            elif event.name == 'enter':
-                typed_string.insert(insert_pos, '\n')
-                insert_pos += 1
-            elif event.name == 'tab':
-                typed_string.insert(insert_pos, '\t')
-                insert_pos += 1
-            elif event.name == 'paste':
-                typed_string.insert(insert_pos, event.device)
-                insert_pos += 1
-        return ''.join(typed_string[:insert_pos])
-
+    
     def load_hotstrings(self):
         """Reads the hotstrings.json file and loads it into memory"""
         # Prefer a hotstrings.json in the cwd if it exists
@@ -487,7 +504,7 @@ class Hotstrings(QObject):
         self.Hotstrings = all_hotstrings['Hotstrings']
         # Case-insensitive hotstrings
         self.hotstrings = all_hotstrings['hotstrings']
-
+    
     def load_settings(self):
         """Loads settings from file"""
         with open(self.settings_path, 'r', encoding='utf-8') as f:
@@ -506,13 +523,9 @@ class Hotstrings(QObject):
         if 'user_funcs_raw' in settings:
             self.calc.user_funcs_raw = settings['user_funcs_raw']
         self.calc.update_user_funcs()
-
+    
     def log_state(self):
         """Adds current values various variables to the log file"""
-        # When the mouse is clicked, user_input and self.bulk are cleared
-        # Disable this - it won't affect this round of logging, but if they
-        # create another log after, it'll at least have that data
-        mouse.unhook_all()
         log_message = ['LOGGING CURRENT STATE']
         log_message.append(f'{self.endchar = }')
         log_message.append(f'{self.restart = }')
@@ -543,13 +556,13 @@ class Hotstrings(QObject):
             return 'User macros:\n' + '\n'.join(output)
         else:
             return 'No user macros defined.'
-
+    
     def on_tray_icon_activated(self, reason):
         """Pauses the app when system tray icon is double clicked"""
         # This function basically just makes sure it takes a double click, not a single click, to do this
         if reason == QSystemTrayIcon.DoubleClick:
             self.toggle_pause()
-
+    
     def pasted(self):
         """Detects paste events, adds them to bulk input"""
         # Paste events are only relevant to bulk input
@@ -557,7 +570,7 @@ class Hotstrings(QObject):
             # Custom way I store paste events - clipboard data in the device parameter
             event = keyboard.KeyboardEvent('down', 29, 'paste', device = pyperclip.paste())
             self.bulk['input'].append(event)
-
+    
     def play(self, hotkey, events, speed_factor, repeat_count, skip_paths):
         """Plays back a macro"""
         # If any modifier keys are currently pressed, this unpresses them
@@ -636,7 +649,30 @@ class Hotstrings(QObject):
         # All done, rebuild hooks
         keyboard.restore_modifiers(state)
         return self.create_hooks()
-
+    
+    def quickTemp(self, match):
+        """Converts matched temperature between fahrenheit and celsius"""
+        # match already contains a temperature, with group 1 being a number and group 2 being f or c
+        try:
+            temperature = float(match.group(1))
+        except:
+            # Regex used to identify numbers here isn't foolproof ¯\_(ツ)_/¯
+            return
+        unit = match.group(2)
+        backspace_count = len(match.group(1)) + len(match.group(2)) + 1
+        if unit.lower() == 'f':
+            # Convert from fahrenheit to celsius
+            temperature = (temperature - 32)*5/9
+            temperature = round(temperature, 2)
+            output = f'{temperature}℃'
+        else:
+            # Convert from celsius to fahrenheit
+            temperature = 1.8*temperature + 32
+            temperature = round(temperature, 2)
+            output = f'{temperature}℉'
+        self.backspace(backspace_count)
+        self.write(output)
+    
     def record(self, event, record_keyboard, record_mouse):
         """Records keyboard and mouse events to create a macro"""
         if event.name == self.endchar and event.event_type == keyboard.KEY_DOWN:
@@ -676,7 +712,7 @@ class Hotstrings(QObject):
             self.macro_signal.emit()
         else:
             self.events.append(event)
-
+    
     def run(self):
         """Begins the main execution loop"""
         self.app.exec_()
@@ -685,7 +721,7 @@ class Hotstrings(QObject):
         if self.restart:
             self.restart = False
             self.run()
-
+    
     def save_settings(self):
         """Saves current settings to file"""
         settings = {}
@@ -698,7 +734,7 @@ class Hotstrings(QObject):
         settings['user_macros'] = self.user_macros
         with open(self.settings_path, 'w', encoding='utf-8') as f:
             json.dump(settings, f, indent=4, ensure_ascii=False)
-
+    
     def serialize_events(self):
         """Converts KeyboardEvent and similar events into json-serializable dicts, so they can be saved to file"""
         first_time = self.events[0].time
@@ -742,7 +778,7 @@ class Hotstrings(QObject):
             self.settings.show()
         except Exception as e:
             logging.exception('Unhandled exception in spawn_macro_settings\n')
-
+    
     def start_record(self, record_keyboard = True, record_mouse = True):
         """Sets up to record keyboard and mouse input for macro creation"""
         # Keyboard and mouse events will be stored in self.events
@@ -760,7 +796,7 @@ class Hotstrings(QObject):
             mouse_pos = mouse.MoveEvent(mouse_pos[0], mouse_pos[1], time.time())
             self.events.append(mouse_pos)
             mouse.hook(self.events.append)
-
+    
     def test_hotstrings(self):
         """Tests every hotstring to verify it gives the correct output, and runs the unit tests"""
         passes = 0
@@ -785,11 +821,11 @@ class Hotstrings(QObject):
         self.paused = not self.paused
         if self.paused:
             self.tray_icon.setToolTip('Hotstrings - PAUSED')
-            self.pause_action.setText('Unpause')
+            self.pause_menu_item.setText('Unpause')
             self.tray_icon.setIcon(QIcon(self.paused_icon))
         else:
             self.tray_icon.setToolTip('Hotstrings')
-            self.pause_action.setText('Pause')
+            self.pause_menu_item.setText('Pause')
             self.tray_icon.setIcon(QIcon(self.normal_icon))
     
     def write(self, text):

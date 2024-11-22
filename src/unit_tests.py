@@ -2,14 +2,19 @@ from calc import Calc
 from convert import convert
 
 def unit_test(func, args, out):
+    """
+    Runs the given function with the given arguments
+    Returns nothing if the output matches the given output
+    Returns an error message if it does not match
+    """
     result = func(args)
     if result != out:
         return f'Fail: {func.__name__}({args}) returned "{result}", expected "{out}".'
     return ''
 
-def unit_tests():
+def unit_test_calc():
+    """Runs unit tests on the Calc.calc function"""
     calc = Calc().calc
-    solve = Calc().solve
     output = []
     output.append(unit_test(calc, '3+4', '7'))
     output.append(unit_test(calc, '3+4', '7'))
@@ -102,6 +107,11 @@ def unit_tests():
     output.append(unit_test(calc, '-4^2', '-16'))
     output.append(unit_test(calc, '1/0', 'Error: Division by zero'))
     output.append(unit_test(calc, 'sqrt(((20-11)^2 + (3-11)^2 + (2-11)^2 + (10-11)^2 + (20-11)^2)/5)', '7.848566748139'))
+    return output
+
+def unit_test_convert():
+    """Runs unit tests on the convert function"""
+    output = []
     output.append(unit_test(convert, '212 f c', '100℃'))
     output.append(unit_test(convert, '32 f c', '0℃'))
     output.append(unit_test(convert, '-40 f c', '-40℃'))
@@ -175,9 +185,23 @@ def unit_tests():
     output.append(unit_test(convert, '6.28318 radian degree', '360°'))
     output.append(unit_test(convert, '45 degree radian', '0.79 radians'))
     output.append(unit_test(convert, '0.707 radian degree', '40.51°'))
+    return output
+
+def unit_test_solve():
+    """Runs unit tests on the Calc.solve function"""
+    solve = Calc().solve
+    output = []
     output.append(unit_test(solve, 'sin(x) = 0', 'x = 0'))
     output.append(unit_test(solve, 'ln(x+1)/ln(2)-ln(x)/ln(2) = 4', 'x = 1/15'))
     output.append(unit_test(solve, 'pi*x = 3', 'x ≈ 0.954929658551'))
+    return output
+
+def unit_tests():
+    """Runs all the unit tests, and returns their outputs"""
+    output = []
+    output += unit_test_calc()
+    output += unit_test_convert()
+    output += unit_test_solve()
     output.append('Done!')
     # Remove empty strings
     output = [i for i in output if i]
