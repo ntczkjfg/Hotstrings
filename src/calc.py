@@ -103,6 +103,12 @@ class Calc:
             else:
                 output += '\nNo user functions.'
             return output
+        elif '\n' in user_input:
+            output = []
+            for line in user_input.split('\n'):
+                output.append(self.calc(line))
+            output = '\n'.join(output)
+            return output
         output = ''
         # Below regex substitute replaces 'ans' and '_' with the previous output of this calculator
         # Expression is complicated to avoid accidental uses
@@ -338,7 +344,20 @@ class Calc:
             expression = expression[:first_index] + 'abs(' + expression[first_index + 1:]
             second_index = expression.index('|')
             expression = expression[:second_index] + ')' + expression[second_index + 1:]
-        while match := re.search(r'log_(-?[\d]*\.[\d]+?)\(', expression):
+        expression = expression.replace('log(', 'log_10(')
+        while match := re.search(r'([⁰¹²³⁴⁵⁶⁷⁸⁹⁽⁾⁺⁻]+)', expression):
+            superscripts = '⁰¹²³⁴⁵⁶⁷⁸⁹⁽⁾⁺⁻'
+            normals = '0123456789()+-'
+            translation_dict = {superscripts[i]: normals[i] for i in range(len(superscripts))}
+            new_power = ''.join(translation_dict[char] for char in match.group(0))
+            expression = expression.replace(match.group(0), f'**({new_power})')
+        while match := re.search(r'([₀₁₂₃₄₅₆₇₈₉]+)', expression):
+            subscripts = '₀₁₂₃₄₅₆₇₈₉'
+            normals = '0123456789'
+            translation_dict = {subscripts[i]: normals[i] for i in range(len(subscripts))}
+            new_subscript = ''.join(translation_dict[char] for char in match.group(0))
+            expression = expression.replace(match.group(0), f'_{new_subscript}')
+        while match := re.search(r'log_(-?[\d]*\.?[\d]+?)\(', expression):
             base = match.group(1)
             # start_index marks the l in log
             start_index = expression.index('log_')
@@ -356,10 +375,9 @@ class Calc:
             # log_expr has the full contents of the log, including the parenthesis
             log_expr = expression[start_index + len(base) + 4:end_index + 1]
             expression = expression[:start_index] + f'log({log_expr},{base})' + expression[end_index + 1:]
-        #  Turn 3(4+5) into 3*(4+5)
-        # If these three lines are placed earlier, before the log stuff, it causes way too many issues
+        # Turn 3(4+5) into 3*(4+5)
+        # If these two lines are placed earlier, before the log stuff, it causes way too many issues
         expression = re.sub(r'(\d)\(', r'\1*(', expression)
-        expression = expression.replace('log(', 'log10(')
         expression = expression.replace('ln', 'log')
         # Earlier on we substituted out binary, octal, and hex values - substitute them back in now
         for key, value in bin_oct_hex.items():
@@ -398,13 +416,19 @@ class Calc:
         self.hotstrings.save_settings()
         return f'{func_name}({func_args}) = {self.format_nicely(func_expr)}'
     
-    def make_rational(self, x):
+    def make_rational(self, x = None):
         """
         Takes in a float x, and outputs it as a reduced fraction if one is found
         Returns x if no appropriate fraction is found
         """
+        if x is None:
+            return {'func': self.make_rational,
+                    'max': 500,
+                    'time': 90}
         x = str(x)
         if '.' not in x: return x
+        if x.startswith('.'):
+            x = '0' + x
         decimal_index = x.index('.')
         # Convert to a string, and cut off after 10 decimal places
         # Rounding like 0.66666666667 would throw us off

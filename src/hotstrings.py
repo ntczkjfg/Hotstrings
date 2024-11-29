@@ -67,6 +67,7 @@ class Hotstrings(QObject):
             'edit macro': self.edit_macro,
             'flip': bulk.flip,
             'flipcase': bulk.flip_case,
+            'frac': self.calc.make_rational,
             'funcs': lambda: self.calc.calc('funcs'),
             'functions': lambda: self.calc.calc('funcs'),
             'hearts': bulk.hearts,

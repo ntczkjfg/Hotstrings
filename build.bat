@@ -4,8 +4,17 @@ if exist "hotstrings.exe" (
 if exist "hotstrings.json" (
 	del /Q "hotstrings.json"
 )
+if exist "settings.json" (
+	del /Q "settings.json"
+)
 if exist "log.txt" (
 	del /Q "log.txt"
+)
+if exist "src\log.txt" (
+	del /Q "src\log.txt"
+)
+if exist "src\settings.json" (
+	del /Q "src\settings.json"
 )
 if exist "src\__pycache__" (
 	rmdir /S /Q "src\__pycache__"
