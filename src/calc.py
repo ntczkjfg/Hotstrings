@@ -281,7 +281,7 @@ class Calc:
         bin_oct_hex = {}
         # Substitute out hex, octal, and binary values so the below string manipulations don't mess them up
         # Temporarily replace them with unique integers that are unlikely to cause problems
-        while match := re.search(r'(0x[0-9a-f]*)|(0b[01]*)|(0o[1-7]*)', expression):
+        while match := re.search(r'(0x[0-9a-f]+)|(0b[01]+)|(0o[1-7]+)', expression):
             key = str(random.randint(1000000, 2000000))
             while key in expression:
                 key = str(random.randint(1000000, 2000000))
