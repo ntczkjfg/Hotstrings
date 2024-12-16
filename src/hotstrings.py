@@ -5,6 +5,8 @@ import time
 from collections import deque
 from pathlib import Path
 import re
+import subprocess
+import traceback
 
 import keyboard
 import mouse
@@ -29,12 +31,13 @@ logging.basicConfig(
 class Hotstrings(QObject):
     macro_signal = pyqtSignal()
     edit_macro_signal = pyqtSignal(object)
+    program_hotstring_signal = pyqtSignal(object, str)
     def __init__(self):
         super().__init__()
+        self.quit_requested = False
         self.macro_signal.connect(self.spawn_macro_settings)
         self.edit_macro_signal.connect(self.spawn_macro_settings)
-        self.app = QApplication([])
-        self.restart = False
+        self.program_hotstring_signal.connect(bulk.program_hotstring_2)
         # State flags
         self.paused = False
         self.debug_flag = False
@@ -48,6 +51,7 @@ class Hotstrings(QObject):
         else:
             self.endchar = '\\'
             self.user_macros = {}
+            self.program_hotstrings = {}
             self.save_settings()
         self.last_output = ''
         self.load_hotstrings()
@@ -84,7 +88,7 @@ class Hotstrings(QObject):
             'mono': bulk.mono,
             'morse': bulk.morse,
             'morse2': bulk.morse2,
-            'play': self.play,
+            'program hotstring': lambda user_input = None: bulk.program_hotstring_1(self, user_input),
             'python': bulk.python,
             'record': self.start_record,
             'recordk': lambda: self.start_record(record_mouse = False),
@@ -124,9 +128,6 @@ class Hotstrings(QObject):
     def change_endchar(self):
         """Changes the endchar"""
         text, ok = QInputDialog.getText(None, 'Change endchar', f'Enter the new endchar:')
-        # For a reason I never discovered, this input dialog causes the self.app execution loop to end
-        # So this self.restart flag tells it to start again in self.run()
-        self.restart = True
         if ok and text:
             if len(text) == 1:
                 self.endchar = text
@@ -182,6 +183,11 @@ class Hotstrings(QObject):
                 # It was a basic hotstring - write the output! 
                 self.write(rp)
         else:
+            for program_hotstring in self.program_hotstrings:
+                if typed_string.endswith(program_hotstring):
+                    self.backspace(len(program_hotstring) + 1)
+                    self.program_hotstring(program_hotstring)
+                    return
             if match := re.search(r'(-?[\d]*\.?[\d]*)([cCfF])$', typed_string):
                 # User input ended in a celsius or fahrenheit temperature like "14.7f" - convert it to the other
                 self.quickTemp(match)
@@ -220,21 +226,21 @@ class Hotstrings(QObject):
         # Create the context menu
         self.menu = QMenu()
         # Add Pause option to context menu
-        self.pause_menu_item = QAction('Pause', self.app)
+        self.pause_menu_item = QAction('Pause')
         self.pause_menu_item.triggered.connect(self.toggle_pause)
         self.menu.addAction(self.pause_menu_item)
         # Add Change endchar option to context menu
-        endchar_change = QAction('Change endchar', self.app)
-        endchar_change.triggered.connect(self.change_endchar)
-        self.menu.addAction(endchar_change)
+        self.endchar_change = QAction('Change endchar')
+        self.endchar_change.triggered.connect(self.change_endchar)
+        self.menu.addAction(self.endchar_change)
         # Add Log Current State to context menu
-        self.debug_menu_item = QAction('Enable Debug Logging', self.app)
+        self.debug_menu_item = QAction('Enable Debug Logging')
         self.debug_menu_item.triggered.connect(self.debug)
         self.menu.addAction(self.debug_menu_item)
         # Add Exit option to context menu
-        exit_action = QAction('Exit', self.app)
-        exit_action.triggered.connect(self.exit_app)
-        self.menu.addAction(exit_action)
+        self.exit_action = QAction('Exit')
+        self.exit_action.triggered.connect(self.exit_app)
+        self.menu.addAction(self.exit_action)
         # Add the context menu to the system tray icon
         self.tray_icon.setContextMenu(self.menu)
         # Add event trigger for when icon is clicked
@@ -273,6 +279,7 @@ class Hotstrings(QObject):
     
     def exit_app(self):
         """Quits the app"""
+        self.quit_requested = True
         keyboard.unhook_all()
         mouse.unhook_all()
         self.tray_icon.hide()
@@ -523,13 +530,16 @@ class Hotstrings(QObject):
             self.calc.user_vars = user_vars
         if 'user_funcs_raw' in settings:
             self.calc.user_funcs_raw = settings['user_funcs_raw']
+        if 'program_hotstrings' in settings:
+            self.program_hotstrings = settings['program_hotstrings']
+        else:
+            self.program_hotstrings = {}
         self.calc.update_user_funcs()
     
     def log_state(self):
         """Adds current values various variables to the log file"""
         log_message = ['LOGGING CURRENT STATE']
         log_message.append(f'{self.endchar = }')
-        log_message.append(f'{self.restart = }')
         log_message.append(f'{self.paused = }')
         log_message.append(f'{self.last_output = }')
         log_message.append(f'{self.bulk = }')
@@ -651,6 +661,16 @@ class Hotstrings(QObject):
         keyboard.restore_modifiers(state)
         return self.create_hooks()
     
+    def program_hotstring(self, name):
+        """Opens the specified file in a new process - useful for launching programs with hotstrings"""
+        file_path = Path(self.program_hotstrings[name])
+        file_cwd = str(file_path.parent)
+        file_path = str(file_path)
+        subprocess.Popen([file_path],
+                         cwd = file_cwd,
+                         start_new_session = True,
+                         shell = True)
+    
     def quickTemp(self, match):
         """Converts matched temperature between fahrenheit and celsius"""
         # match already contains a temperature, with group 1 being a number and group 2 being f or c
@@ -714,25 +734,17 @@ class Hotstrings(QObject):
         else:
             self.events.append(event)
     
-    def run(self):
-        """Begins the main execution loop"""
-        self.app.exec_()
-        # There are some known events which stop the execution loop consistently when we don't actually want to
-        # They set this flag so we can avoid ending the execution loop
-        if self.restart:
-            self.restart = False
-            self.run()
-    
     def save_settings(self):
         """Saves current settings to file"""
         settings = {}
         settings['endchar'] = self.endchar
+        settings['user_macros'] = self.user_macros
+        settings['program_hotstrings'] = self.program_hotstrings
         settings['user_vars'] = self.calc.user_vars
         settings['user_funcs_raw'] = self.calc.user_funcs_raw
         for key, value in settings['user_vars'].items():
             if isinstance(value, complex):
                 settings['user_vars'][key] = str(value)
-        settings['user_macros'] = self.user_macros
         with open(self.settings_path, 'w', encoding='utf-8') as f:
             json.dump(settings, f, indent=4, ensure_ascii=False)
     
@@ -767,8 +779,6 @@ class Hotstrings(QObject):
     def spawn_macro_settings(self, macro = None):
         """Opens the window to configure and save macros"""
         try:
-            # For an unknown reason the program always exits after doing this, so.. this flag tells it to immediately restart
-            self.restart = True
             if macro:
                 # User is editing an existing macro
                 self.settings = Macro_Settings(self, None, macro)
@@ -845,8 +855,18 @@ class Hotstrings(QObject):
             self.last_output = text
 
 def main():
-    app = Hotstrings()
-    app.run()
+    app = QApplication([])
+    hotstrings = Hotstrings()
+    def excepthook(exc_type, exc_value, exc_tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+        else:
+            traceback.print_exception(exc_type, exc_value, exc_tb)
+        app.quit()
+        sys.exit()
+    #sys.excepthook = excepthook
+    while not hotstrings.quit_requested:
+        app.exec_()
 
 if __name__ == '__main__':
     try:

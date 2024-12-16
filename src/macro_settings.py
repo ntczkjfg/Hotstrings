@@ -180,7 +180,7 @@ class Macro_Settings(QWidget):
         self.hotstrings.load_settings()
         self.hotstrings.create_hooks()
         # Close the window
-        self.cancel()
+        self.close()
     
     def set_macro(self):
         """Sets all settings to match those of self.macro"""

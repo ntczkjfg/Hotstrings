@@ -1,5 +1,6 @@
 import random
 import re
+from PyQt5.QtWidgets import QFileDialog
 
 def blackboard_bold(user_input = None):
     """Convert input into blackboard bold"""
@@ -293,6 +294,26 @@ def morse2(user_input = None):
                          '1': '.---- ', '2': '..--- ', '3': '...-- ', '4': '....- ', '5': '..... ', '6': '-.... ', '7': '--... ', '8': '---.. ', '9': '----. ', '0': '----- ' }
     output = ''.join(translation_dict.get(char.upper(), char) for char in user_input)
     return output
+
+def program_hotstring_1(hotstrings, user_input = None):
+    """
+    Creates a macro to open a specified file
+    """
+    if not user_input:
+        return {'max': 500,
+                'time': 90}
+    if (user_input in hotstrings.hotstrings
+        or user_input in hotstrings.Hotstrings
+        or user_input in hotstrings.callables
+        or user_input in hotstrings.user_macros):
+        return f'Name "{user_input}" already in use'
+    hotstrings.program_hotstring_signal.emit(hotstrings, user_input)
+
+def program_hotstring_2(hotstrings, user_input):
+    file_name, _ = QFileDialog.getOpenFileName(None, "Open File", "", "All Files (*)")
+    hotstrings.program_hotstrings[user_input] = file_name
+    hotstrings.save_settings()
+    hotstrings.write('Successfully created')
 
 def python(user_input = None):
     """Runs input as a Python program, intercepts any print statements and returns them"""
