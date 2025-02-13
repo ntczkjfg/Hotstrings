@@ -178,6 +178,8 @@ class Calc:
             return 'Error: Invalid syntax'
         except ZeroDivisionError:
             return 'Error: Division by zero'
+        except OverflowError:
+            return 'Error: Overflow'
         except NameError as e:
             # Happens when a function or variable isn't defined
             for func in self.user_funcs_raw.values():
