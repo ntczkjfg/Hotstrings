@@ -19,7 +19,7 @@ if exist "src\settings.json" (
 if exist "src\__pycache__" (
 	rmdir /S /Q "src\__pycache__"
 )
-pyinstaller --add-data "assets\images\normal.ico;." --add-data "assets\images\paused.ico;." --add-data "src\hotstrings.json;." --onefile --noconsole --icon="assets\images\normal.ico" "src\hotstrings.py"
+pyinstaller --exclude PyQt5 --add-data "assets\images\normal.ico;." --add-data "assets\images\paused.ico;." --add-data "src\hotstrings.json;." --onefile --noconsole --icon="assets\images\normal.ico" "src\hotstrings.py"
 move /Y "dist\hotstrings.exe" .
 ren "hotstrings.exe" "Hotstrings.exe"
 rmdir /S /Q "dist"

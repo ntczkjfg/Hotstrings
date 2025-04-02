@@ -1,6 +1,6 @@
 import random
 import re
-from PyQt5.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog
 
 def blackboard_bold(user_input = None):
     """Convert input into blackboard bold"""
@@ -106,16 +106,11 @@ def delete_macro(hotstrings, user_input = None):
         return {'max': 500,
                 'time': 90}
     if user_input == 'all':
-        hotstrings.user_macros = {}
+        hotstrings.user_macros = []
         output = 'Deleted all macros'
-    elif user_input in hotstrings.user_macros:
-        index = list(hotstrings.user_macros.keys()).index(user_input) + 1
-        del hotstrings.user_macros[user_input]
-        output = f'Deleted macro {index}: {user_input}'
     elif user_input.isdigit() and 1 <= (user_int := int(user_input)) <= len(hotstrings.user_macros):
-        macro_to_delete = list(hotstrings.user_macros.keys())[user_int - 1]
-        del hotstrings.user_macros[macro_to_delete]
-        output = f'Deleted macro {user_input}: {macro_to_delete}'
+        output = f'Deleted macro {user_input}: {hotstrings.user_macros[user_int-1][0]}'
+        del hotstrings.user_macros[user_int - 1]
     else:
         return 'Invalid macro'
     hotstrings.save_settings()
@@ -127,8 +122,8 @@ def flip(user_input = None):
     if not user_input:
         return {'max': 500,
                 'time': 90}
-    pre =  r'''&><}{][)(_!?.',^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`⅋<>{}[]()‾¡¿˙,'v0ƖᄅƐㄣϛ9ㄥ86ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀qƆpƎℲפHIſʞ˥WNOԀQɹS┴∩ΛMX⅄Z,'''
-    post = r'''⅋<>{}[]()‾¡¿˙,'v0ƖᄅƐㄣϛ9ㄥ86ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀qƆpƎℲפHIſʞ˥WNOԀQɹS┴∩ΛMX⅄Z,&><}{][)(_!?.',^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`'''
+    pre =  r"/\&><}{][)(_!?.',^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`⅋‾¡¿˙ƖᄅƐㄣϛㄥɐɔǝɟƃɥᴉɾʞɯɹʇʌʍʎ∀ꓭƆƎℲפſ˥Ԁ┴∩Λ⅄"
+    post = r"/\⅋<>{}[]()‾¡¿˙,'v0ƖᄅƐㄣϛ9ㄥ86ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀ꓭƆpƎℲפHIſʞ˥WNOԀQɹS┴∩ΛMX⅄Z,&_!?.123457acefghijkmrtvwyABCEFGJLPTUVY"
     translation_dict = {pre[i]: post[i] for i in range(len(pre))}
     translation_dict['"'] = ',,'
     user_input = user_input[::-1]
@@ -311,9 +306,12 @@ def program_hotstring_1(hotstrings, user_input = None):
 
 def program_hotstring_2(hotstrings, user_input):
     file_name, _ = QFileDialog.getOpenFileName(None, "Open File", "", "All Files (*)")
-    hotstrings.program_hotstrings[user_input] = file_name
-    hotstrings.save_settings()
-    hotstrings.write('Successfully created')
+    if file_name:
+        hotstrings.program_hotstrings[user_input] = file_name
+        hotstrings.save_settings()
+        hotstrings.write('Successfully created')
+    else:
+        hotstrings.write('Aborted')
 
 def python(user_input = None):
     """Runs input as a Python program, intercepts any print statements and returns them"""
@@ -332,6 +330,11 @@ def python(user_input = None):
     else:
         output = custom_print('', outputting = True)
     return output
+
+def random_heart():
+    """Returns a randomly colored heart"""
+    hearts = ['💚', '🤎', '💙', '🧡', '🤍', '🖤', '❤️', '💛', '💜', '🩷', '🩶', '🩵']
+    return random.choice(hearts)
 
 def rot13(user_input = None):
     """Applies the rot13 shift cypher to input"""

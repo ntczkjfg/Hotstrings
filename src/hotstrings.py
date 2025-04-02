@@ -8,13 +8,12 @@ import re
 import subprocess
 import traceback
 
-import keyboard
-import mouse
+from pynput import keyboard, mouse
 import pyperclip
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QMenu,
-                             QAction, QInputDialog, QMessageBox)
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu,
+                             QInputDialog, QMessageBox)
 from calc import Calc
 from convert import convert
 import bulk_functions as bulk
@@ -50,7 +49,7 @@ class Hotstrings(QObject):
             self.load_settings()
         else:
             self.endchar = '\\'
-            self.user_macros = {}
+            self.user_macros = []
             self.program_hotstrings = {}
             self.save_settings()
         self.last_output = ''
@@ -90,6 +89,7 @@ class Hotstrings(QObject):
             'morse2': bulk.morse2,
             'program hotstring': lambda user_input = None: bulk.program_hotstring_1(self, user_input),
             'python': bulk.python,
+            'randomheart': bulk.random_heart,
             'record': self.start_record,
             'recordk': lambda: self.start_record(record_mouse = False),
             'recordm': lambda: self.start_record(record_keyboard = False),
@@ -114,16 +114,22 @@ class Hotstrings(QObject):
         # Make sure the user_input deque is large enough to handle the largest valid hotstring
         # Make it double that length to account for things like user backspaces, arrow keys, etc
         maxlen = 0
-        for key in self.Hotstrings | self.hotstrings | self.callables | self.user_macros:
+        for key in self.Hotstrings | self.hotstrings | self.callables:
             maxlen = max(maxlen, len(key))
         self.user_input = deque(maxlen = 2*maxlen)
         self.create_tray_icon()
+        self.mouse_listener = mouse.Listener()
+        self.keyboard_listener = keyboard.Listener()
         self.create_hooks()
+        self.keyboard = keyboard.Controller()
+        self.mouse = mouse.Controller()
+        self.pressed = set()
     
     def backspace(self, n):
         """Sends n backspace presses"""
         for _ in range(n):
-            keyboard.press_and_release('backspace')
+            self.keyboard.press(keyboard.Key.backspace)
+            self.keyboard.release(keyboard.Key.backspace)
     
     def change_endchar(self):
         """Changes the endchar"""
@@ -137,6 +143,12 @@ class Hotstrings(QObject):
                 dlg.setWindowTitle('Setting endchar failed')
                 dlg.setText('Error: The endchar must be exactly 1 character. No changes made.')
                 dlg.exec()
+    
+    def check_hotkeys(self):
+        for hotkey in self.hotkeys:
+            if self.is_hotkey_pressed(hotkey[0]):
+                hotkey[1]()
+                return
     
     def check_hotstrings(self, typed_string, testing = False):
         """Checks what the user typed to see if it contains a hotstring"""
@@ -190,7 +202,14 @@ class Hotstrings(QObject):
                     return
             if match := re.search(r'(-?[\d]*\.?[\d]*)([cCfF])$', typed_string):
                 # User input ended in a celsius or fahrenheit temperature like "14.7f" - convert it to the other
-                self.quickTemp(match)
+                self.quick_temp(match)
+    
+    def clear_hooks(self):
+        if self.mouse_listener.running:
+            self.mouse_listener.stop()
+        if self.keyboard_listener.running:
+            self.keyboard_listener.stop()
+        self.hotkeys = []
     
     def clear_input(self):
         """Clears user_input and ends any bulk collection"""
@@ -199,21 +218,23 @@ class Hotstrings(QObject):
     
     def create_hooks(self):
         """Removes any existing hooks, then creates all the usual ones"""
-        mouse.unhook_all()
+        self.clear_hooks()
         # Clicking the mouse clears input - makes it impossible to determine what was actually typed
-        mouse.on_click(self.clear_input)
-        mouse.on_right_click(self.clear_input)
-        keyboard.unhook_all()
-        keyboard.on_press(self.handle_input_wrapper)
-        keyboard.add_hotkey('win+z', self.toggle_pause)
-        keyboard.add_hotkey('ctrl+v', self.pasted)
-        for macro in self.user_macros.values():
-            hotkey = macro['hotkey']
-            events = macro['events']
-            speed_factor = macro['speed_factor']
-            repeat_count = macro['repeat_count']
-            skip_paths = macro['skip_paths']
-            keyboard.add_hotkey(hotkey, self.play, args = [hotkey, events, speed_factor, repeat_count, skip_paths])
+        self.mouse_listener = mouse.Listener(on_click = self.clear_input)
+        self.mouse_listener.start()
+        self.keyboard_listener = keyboard.Listener(on_press = self.handle_input_wrapper,
+                                                   on_release = self.on_release)
+        self.keyboard_listener.start()
+        self.hotkeys.append([['cmd', 'z'], self.toggle_pause])
+        self.hotkeys.append([['ctrl', 'v'], self.pasted])
+        for macro in self.user_macros:
+            hotkey = macro[0]
+            args = macro[1]
+            events = args['events']
+            speed_factor = args['speed_factor']
+            repeat_count = args['repeat_count']
+            skip_paths = args['skip_paths']
+            self.hotkeys.append([hotkey, lambda: self.play(hotkey, events, speed_factor, repeat_count, skip_paths)])
     
     def create_tray_icon(self):
         """Creates the system tray icon and context menu"""
@@ -265,27 +286,20 @@ class Hotstrings(QObject):
             return {'func': self.edit_macro,
                     'max': 500,
                     'time': 90}
-        if user_input in self.user_macros:
-            # User provided the (typed) hotkey to activate a macro, edit that one
-            macro = self.user_macros[user_input]
-            self.edit_macro_signal.emit(macro)
-        elif user_input.isdigit() and 1 <= (user_int := int(user_input)) <= len(self.user_macros):
+        if user_input.isdigit() and 1 <= (user_int := int(user_input)) <= len(self.user_macros):
             # See if the user entered a number that corresponds to a macro - use 'macros' hotstring to see list
-            macro_to_edit = list(self.user_macros.keys())[user_int - 1]
-            macro = self.user_macros[macro_to_edit]
-            self.edit_macro_signal.emit(macro)
+            macro_to_edit = self.user_macros[user_int - 1]
+            self.edit_macro_signal.emit(macro_to_edit)
         else:
             return 'Invalid macro'
     
     def exit_app(self):
         """Quits the app"""
         self.quit_requested = True
-        keyboard.unhook_all()
-        mouse.unhook_all()
+        self.clear_hooks()
         self.tray_icon.hide()
         QApplication.quit()
-        exit()
-    
+        
     def find_tray_icons(self):
         """Locates .ico files to use for system tray icons, or uses default images if none are present"""
         # Define the system tray icons to be used normally, and when paused
@@ -314,6 +328,25 @@ class Hotstrings(QObject):
         if not self.paused_icon:
             self.paused_icon = QIcon(QApplication.style().standardIcon(QApplication.style().SP_ComputerIcon))
     
+    def get_key_name(self, key, add_to_pressed = False, remove_from_pressed = False):
+        canonical_key = self.keyboard_listener.canonical(key)
+        if hasattr(canonical_key, 'char') and canonical_key.char is not None:
+            canonical_key = canonical_key.char
+        elif hasattr(canonical_key, 'name') and canonical_key.name is not None:
+            canonical_key = canonical_key.name
+        if not isinstance(canonical_key, str):
+            canonical_key = key.name
+        if add_to_pressed:
+            self.pressed.add(canonical_key)
+            self.check_hotkeys()
+        elif remove_from_pressed:
+            self.pressed.discard(canonical_key)
+        if hasattr(key, 'char') and key.char is not None:
+            key = key.char
+        elif hasattr(key, 'name') and key.name is not None:
+            key = key.name
+        return key if isinstance(key, str) and key.isprintable() else None
+    
     def get_typed_string(self, user_input, forgiving = False):
         """Parses user_input to determine what the user likely actually typed"""
         typed_string = []
@@ -321,29 +354,27 @@ class Hotstrings(QObject):
         insert_pos = 0
         if len(user_input) == 0:
             return ''
-        while user_input[0].name in ['left', 'right', 'backspace', 'up', 'down']:
+        while user_input[0] in ['left', 'right', 'backspace', 'up', 'down']:
             # None of these events mess up the string logic when at the start of a string
             # But removing them now allows the logic below to be simpler
             del user_input[0]
             if len(user_input) == 0:
                 return ''
-        for i, event in enumerate(user_input):
-            if not isinstance(event, keyboard.KeyboardEvent):
-                continue
-            if event.name == 'v':
-                if i > 0 and user_input[i-1].name == 'paste':
-                    # User hit ctrl+v to paste, and we handled this in the previous event - skip
+        for i, key in enumerate(user_input):
+            if key == 'v':
+                if len(user_input) > i+1 and user_input[i+1].startswith('_paste_'):
+                    # User hit ctrl+v to paste, skip - will be handled in next event
                     continue
-                typed_string.insert(insert_pos, event.name)
+                typed_string.insert(insert_pos, key)
                 insert_pos += 1
-            elif len(event.name) == 1:
+            elif len(key) == 1:
                 # User typed a regular character, insert it into their typed string
-                typed_string.insert(insert_pos, event.name)
+                typed_string.insert(insert_pos, key)
                 insert_pos += 1
-            elif event.name == 'space':
+            elif key == 'space':
                 typed_string.insert(insert_pos, ' ')
                 insert_pos += 1
-            elif event.name == 'left':
+            elif key == 'left':
                 # Pressed the left key, move the insert position
                 insert_pos -= 1
                 if insert_pos < 0:
@@ -354,7 +385,7 @@ class Hotstrings(QObject):
                         return None
                     typed_string = []
                     insert_pos = 0
-            elif event.name == 'right':
+            elif key == 'right':
                 insert_pos += 1
                 if insert_pos > len(typed_string):
                     # If they tried to move right of the rightmost position, we have no
@@ -364,7 +395,7 @@ class Hotstrings(QObject):
                         return None
                     typed_string = []
                     insert_pos = 0
-            elif event.name in ['up', 'down']:
+            elif key in ['up', 'down']:
                 # Both of these keys make it impossible to accurately
                 # determine what the user input looks like, give up
                 # Or if we're feeling forgiven, start over from here
@@ -372,30 +403,28 @@ class Hotstrings(QObject):
                     return None
                 typed_string = []
                 insert_pos = 0
-            elif event.name == 'backspace':
+            elif key == 'backspace':
                 if insert_pos >= 1:
                     del typed_string[insert_pos - 1]
                     insert_pos -= 1
-            elif event.name == 'enter':
+            elif key == 'enter':
                 typed_string.insert(insert_pos, '\n')
                 insert_pos += 1
-            elif event.name == 'tab':
+            elif key == 'tab':
                 typed_string.insert(insert_pos, '\t')
                 insert_pos += 1
-            elif event.name == 'paste':
-                typed_string.insert(insert_pos, event.device)
-                insert_pos += 1
+            elif key.startswith('_paste_'):
+                for char in key[7:]:
+                    typed_string.insert(insert_pos, char)
+                    insert_pos += 1
         return ''.join(typed_string[:insert_pos])
     
-    def handle_input(self, event):
+    def handle_input(self, key):
         """Handles all input"""
         if self.paused:
             # Do nothing if we're paused
             return
-        if event.scan_code == 99:
-            # Function key, event.name == None by default, causes issues
-            event.name = 'fn'
-        if event.name == self.endchar:
+        if key == self.endchar:
             # User typed the endchar!
             if self.bulk:
                 # We were already gathering input for a bulk function - time to process that input
@@ -449,7 +478,7 @@ class Hotstrings(QObject):
                 # Not in a bulk function, so check for a normal hotstring
                 # Combine everything typed into one string
                 text = self.get_typed_string(self.user_input, forgiving = True)
-                self.user_input.append(event)
+                self.user_input.append(key)
                 try:
                     # Send it off to check if it contains a valid hotstring
                     self.check_hotstrings(text)
@@ -460,7 +489,7 @@ class Hotstrings(QObject):
                     logging.exception('\n'.join(error_message))
         elif self.bulk:
             # We're doing input collection for a bulk function!
-            self.bulk['input'].append(event)
+            self.bulk['input'].append(key)
             if len(self.bulk['input']) > self.bulk['max']:
                 # Typed too much
                 self.bulk = None
@@ -471,13 +500,18 @@ class Hotstrings(QObject):
                 return
         else:
             # Regular input, just toss it in the queue
-            self.user_input.append(event)
+            self.user_input.append(key)
     
-    def handle_input_wrapper(self, event):
+    def handle_input_wrapper(self, key, injected):
         """Calls handle_input, logs current state in event of errors"""
+        if injected:
+            return
         try:
             if self.debug_flag: self.log_state()
-            self.handle_input(event)
+            key = self.get_key_name(key, add_to_pressed = True)
+            if key is None:
+                return
+            self.handle_input(key)
             if self.debug_flag: self.log_state()
         except Exception:
             error_message = ['Unhandled exception in handle_input']
@@ -492,6 +526,15 @@ class Hotstrings(QObject):
             error_message.append(f'{self.get_typed_string(self.user_input, forgiving = True) = }')
             error_message.append('')
             logging.exception('\n'.join(error_message))
+    
+    def is_any_pressed(self, keys):
+        return any(key in self.pressed for key in keys)
+    
+    def is_hotkey_pressed(self, keys):
+        for key in self.pressed:
+            if key in {'ctrl', 'alt', 'shift', 'cmd'} and key not in keys:
+                return False
+        return all(key in self.pressed for key in keys)
     
     def load_hotstrings(self):
         """Reads the hotstrings.json file and loads it into memory"""
@@ -520,8 +563,9 @@ class Hotstrings(QObject):
         self.endchar = settings['endchar']
         if 'user_macros' in settings:
             self.user_macros = settings['user_macros']
+            self.user_macros = self.serialize_user_macros(deserialize = self.user_macros)
         else:
-            self.user_macros = {}
+            self.user_macros = []
         if 'user_vars' in settings:
             user_vars = settings['user_vars']
             for key, value in user_vars.items():
@@ -562,75 +606,76 @@ class Hotstrings(QObject):
         """Outputs a list of the user-defined macros"""
         output = []
         for i, macro in enumerate(self.user_macros, start = 1):
-            output.append(f'{i}: {macro}')
+            output.append(f'{i}: {macro[0]}')
         if output:
             return 'User macros:\n' + '\n'.join(output)
         else:
             return 'No user macros defined.'
     
+    def on_click(self, x, y, button, pressed, injected):
+        event_type = 'mouse_click' if pressed else 'mouse_release'
+        return {'event_type': event_type,
+                'time': time.time(),
+                'device': 'mouse',
+                'pos': (x, y),
+                'button': button}
+    
+    def on_move(self, x, y, injected):
+        return {'event_type': 'mouse_move',
+                'time': time.time(),
+                'device': 'mouse',
+                'pos': (x, y)}
+    
+    def on_press(self, key, injected):
+        return {'event_type': 'key_down',
+                'time': time.time(),
+                'device': 'keyboard',
+                'key': key,
+                'name': self.get_key_name(key, add_to_pressed = True)}
+    
+    def on_release(self, key, injected):
+        return {'event_type': 'key_up',
+                'time': time.time(),
+                'device': 'keyboard',
+                'key': key,
+                'name': self.get_key_name(key, remove_from_pressed = True)}
+    
+    def on_scroll(self, x, y, dx, dy, injected):
+        return {'event_type': 'mouse_scroll',
+                'time': time.time(),
+                'device': 'mouse',
+                'pos': (x, y),
+                'scroll': (dx, dy)}
+    
     def on_tray_icon_activated(self, reason):
         """Pauses the app when system tray icon is double clicked"""
         # This function basically just makes sure it takes a double click, not a single click, to do this
-        if reason == QSystemTrayIcon.DoubleClick:
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.toggle_pause()
     
     def pasted(self):
         """Detects paste events, adds them to bulk input"""
-        # Paste events are only relevant to bulk input
+        # Custom way I store paste events
+        paste_event = '_paste_' + pyperclip.paste()
         if self.bulk:
-            # Custom way I store paste events - clipboard data in the device parameter
-            event = keyboard.KeyboardEvent('down', 29, 'paste', device = pyperclip.paste())
-            self.bulk['input'].append(event)
+            self.bulk['input'].append(paste_event)
+        else:
+            self.user_input.append(paste_event)
     
     def play(self, hotkey, events, speed_factor, repeat_count, skip_paths):
         """Plays back a macro"""
-        # If any modifier keys are currently pressed, this unpresses them
-        state = keyboard.stash_state()
         # Remove all hooks for playback
-        keyboard.unhook_all()
-        mouse.unhook_all()
-        # Creates a list of all keys in the hotkey that activates this macro
-        hotkey_keys = hotkey.split('+')
-        while True:
-            # When the macro is first started, the user is usually still holding down the hotkey
-            # This loop waits until they've released every key in the hotkey before starting the macro
-            breakout = True
-            for key in hotkey_keys:
-                if keyboard.is_pressed(key):
-                    breakout = False
-            if breakout:
-                break
-            time.sleep(0.01)
-        if skip_paths:
-            # We're skipping all mouse paths, but we still want to keep MouseMove events that precede
-            # MouseButton events, so the click happens in the correct location
-            # Reverse the events, iterate through it - save every MouseMove event that's the first one
-            # to appear after a MouseButton event, mark all the rest for deletion - then delete them
-            # and un-reverse the events
-            events = events[::-1]
-            save_next = False
-            to_delete = []
-            for i, event in enumerate(events):
-                if event['event'] == 'button':
-                    # Encountered a button event, so save the next move event
-                    save_next = True
-                elif event['event'] == 'move':
-                    if save_next:
-                        # This is the first move event after a button event - don't delete it
-                        save_next = False
-                    else:
-                        # This move event just helps define a mouse path, delete it
-                        to_delete.append(i)
-            for i in to_delete[::-1]:
-                del events[i]
-            events = events[::-1]
+        self.clear_hooks()
+        self.pressed = set()
+        self.keyboard_listener = keyboard.Listener(on_press = self.on_press,
+                                                   on_release = self.on_release)
+        self.keyboard_listener.start()
         while repeat_count > 0:
             for i, event in enumerate(events):
-                if keyboard.is_pressed(hotkey):
+                if self.is_hotkey_pressed(hotkey):
                     # If the user is pressing the hotkey, wait for them to let go, then end the macro and rebuild hooks
-                    while keyboard.is_pressed(hotkey):
+                    while self.is_hotkey_pressed(hotkey):
                         time.sleep(0.01)
-                    keyboard.restore_modifiers(state)
                     return self.create_hooks()
                 # Timing loop:
                 if i > 0:
@@ -638,27 +683,31 @@ class Hotstrings(QObject):
                     # Wait the amount of time between this event and the previous one, divided by the speed factor
                     go_time = time.time() + (event['time'] - events[i-1]['time']) / speed_factor
                     while (current_time := time.time()) < go_time:
-                        if keyboard.is_pressed(hotkey):
+                        if self.is_hotkey_pressed(hotkey):
                             # If the macro hotkey is pressed, end the macro and rebuildhooks
-                            while keyboard.is_pressed(hotkey):
+                            while self.is_hotkey_pressed(hotkey):
                                 time.sleep(0.01)
-                            keyboard.restore_modifiers(state)
                             return self.create_hooks()
                         # Sleep in .01 second increments or less, until enough time has elapsed
                         time.sleep(min(0.01, go_time - current_time))
                 # Processes each kind of event that can be encountered, and carries it out
-                if event['event'] == 'button': # Mouse was clicked
-                    mouse.release(event['name']) if event['type'] == mouse.UP else mouse.press(event['name'])
-                elif event['event'] == 'move': # Mouse was moved
-                    mouse.move(event['x'], event['y'])
-                elif event['event'] == 'wheel': # Mouse wheel was scrolled
-                    mouse.wheel(event['delta'])
-                elif event['event'] == 'key': # Keyboard key was pressed
-                    key = event['scan_code'] or event['name']
-                    keyboard.press(key) if event['type'] == keyboard.KEY_DOWN else keyboard.release(key)
+                if event['event_type'] == 'mouse_click': # Mouse was clicked
+                    self.mouse.position = event['pos']
+                    self.mouse.press(event['button'])
+                elif event['event_type'] == 'mouse_release':
+                    self.mouse.position = event['pos']
+                    self.mouse.release(event['button'])
+                elif event['event_type'] == 'mouse_move' and not skip_paths: # Mouse was moved
+                    self.mouse.position = event['pos']
+                elif event['event_type'] == 'mouse_scroll': # Mouse wheel was scrolled
+                    self.mouse.position = event['pos']
+                    self.mouse.scroll(*event['scroll'])
+                elif event['event_type'] == 'key_down': # Keyboard key was pressed
+                    self.keyboard.press(event['key'])
+                elif event['event_type'] == 'key_up':
+                    self.keyboard.release(event['key'])
             repeat_count -= 1
         # All done, rebuild hooks
-        keyboard.restore_modifiers(state)
         return self.create_hooks()
     
     def program_hotstring(self, name):
@@ -671,7 +720,7 @@ class Hotstrings(QObject):
                          start_new_session = True,
                          shell = True)
     
-    def quickTemp(self, match):
+    def quick_temp(self, match):
         """Converts matched temperature between fahrenheit and celsius"""
         # match already contains a temperature, with group 1 being a number and group 2 being f or c
         try:
@@ -694,51 +743,38 @@ class Hotstrings(QObject):
         self.backspace(backspace_count)
         self.write(output)
     
-    def record(self, event, record_keyboard, record_mouse):
+    def record(self, event):
         """Records keyboard and mouse events to create a macro"""
-        if event.name == self.endchar and event.event_type == keyboard.KEY_DOWN:
+        if event['event_type'] == 'key_down' and event['name'] == self.endchar:
             # Endchar is encountered, end collection
             self.create_hooks()
             # It will usually catch the keyboard up event for the endchar that activated recording
             # So find and remove it
             for i, event in enumerate(self.events):
-                if isinstance(event, keyboard.KeyboardEvent):
-                    if event.name == self.endchar and event.event_type == keyboard.KEY_UP:
+                if event['device'] == 'keyboard':
+                    if event['event_type'] == 'key_up' and event['name'] == self.endchar:
                         del self.events[i]
                     # If present it'll always be the first KeyboardEvent, so break if we find one and it isn't
                     break
-            # Make self.events json-serializable
-            self.serialize_events()
-            if record_mouse:
-                # The first event in self.events will always be a MouseMove to the mouse's current position
-                # This event is created the moment the recording starts - below if statement will update its
-                # time attribute to match the first real user input
-                if len(self.events) > 1:
-                    self.events[0]['time'] = self.events[1]['time']
-                # The initial MouseMove event, which we created, is only needed if a button event
-                # is encountered before the first move event - this for loop checks for that, and
-                # either keeps or deletes the first event as appropriate
-                for event in self.events[1:]:
-                    if event['event'] == 'move':
-                        del self.events[0]
-                        break
-                    elif event['event'] == 'button':
-                        break
-                else:
-                    # We can also delete it if there are simply no other mouse events at all
-                    del self.events[0]
+            # Index all times from the start of the first event, which is our t = 0
+            start_time = self.events[0]['time']
+            for i, event in enumerate(self.events):
+                self.events[i]['time'] = event['time'] - start_time
             # Remove the endchar
-            keyboard.press_and_release('backspace')
+            self.backspace(1)
             # Spawn the macro settings window
             self.macro_signal.emit()
         else:
-            self.events.append(event)
+            if self.record_keyboard and event['device'] == 'keyboard':
+                self.events.append(event)
+            elif self.record_mouse and event['device'] == 'mouse':
+                self.events.append(event)
     
     def save_settings(self):
         """Saves current settings to file"""
         settings = {}
         settings['endchar'] = self.endchar
-        settings['user_macros'] = self.user_macros
+        settings['user_macros'] = self.serialize_user_macros()
         settings['program_hotstrings'] = self.program_hotstrings
         settings['user_vars'] = self.calc.user_vars
         settings['user_funcs_raw'] = self.calc.user_funcs_raw
@@ -748,33 +784,32 @@ class Hotstrings(QObject):
         with open(self.settings_path, 'w', encoding='utf-8') as f:
             json.dump(settings, f, indent=4, ensure_ascii=False)
     
-    def serialize_events(self):
-        """Converts KeyboardEvent and similar events into json-serializable dicts, so they can be saved to file"""
-        first_time = self.events[0].time
-        for i, event in enumerate(self.events):
-            if isinstance(event, mouse.ButtonEvent):
-                event = {'event': 'button',
-                         'name': event.button,
-                         'type': event.event_type,
-                         'time': event.time - first_time}
-            elif isinstance(event, mouse.MoveEvent):
-                event = {'event': 'move',
-                         'x': event.x,
-                         'y': event.y,
-                         'time': event.time - first_time}
-            elif isinstance(event, mouse.WheelEvent):
-                event = {'event': 'wheel',
-                         'delta': event.delta,
-                         'time': event.time - first_time}
-            elif isinstance(event, keyboard.KeyboardEvent):
-                event = {'event': 'key',
-                         'scan_code': event.scan_code,
-                         'name': event.name,
-                         'type': event.event_type,
-                         'time': event.time - first_time}
-            else:
-                raise TypeError(f'Unknown event type: {event}')
-            self.events[i] = event
+    def serialize_user_macros(self, deserialize = None):
+        if deserialize:
+            new_macros = deserialize
+            for i, macro in enumerate(new_macros):
+                for j, event in enumerate(macro[1]['events']):
+                    if 'key' in event:
+                        key_type, value = event['key'].split(':')
+                        if key_type == 'key':
+                            new_macros[i][1]['events'][j]['key'] = getattr(keyboard.Key, value, None)
+                        elif key_type == 'keycode':
+                            new_macros[i][1]['events'][j]['key'] = keyboard.KeyCode.from_char(value)
+                    elif 'button' in event:
+                        new_macros[i][1]['events'][j]['button'] = getattr(mouse.Button, event['button'], None)
+        else:
+            new_macros = self.user_macros
+            for i, macro in enumerate(new_macros):
+                for j, event in enumerate(macro[1]['events']):
+                    if 'key' in event:
+                        key = event['key']
+                        if isinstance(key, keyboard.Key):
+                            new_macros[i][1]['events'][j]['key'] = f'key:{key.name}'
+                        elif isinstance(key, keyboard.KeyCode):
+                            new_macros[i][1]['events'][j]['key'] = f'keycode:{key.char}'
+                    elif 'button' in event:
+                        new_macros[i][1]['events'][j]['button'] = event['button'].name
+        return new_macros
     
     def spawn_macro_settings(self, macro = None):
         """Opens the window to configure and save macros"""
@@ -782,6 +817,7 @@ class Hotstrings(QObject):
             if macro:
                 # User is editing an existing macro
                 self.settings = Macro_Settings(self, None, macro)
+                self.user_macros.remove(macro)
             else:
                 # A new macro has been recorded, and is currently in self.events
                 self.settings = Macro_Settings(self, self.events, macro)
@@ -794,19 +830,20 @@ class Hotstrings(QObject):
         """Sets up to record keyboard and mouse input for macro creation"""
         # Keyboard and mouse events will be stored in self.events
         self.events = []
+        self.record_keyboard = record_keyboard
+        self.record_mouse = record_mouse
         # Remove all hooks so we can redirect them to the recorder
-        keyboard.unhook_all()
-        mouse.unhook_all()
+        self.clear_hooks()
         # Keyboard data is always sent to the recorder, even if we aren't saving it, for endchar detection
-        keyboard.hook(lambda event: self.record(event, record_keyboard, record_mouse))
+        self.keyboard_listener = keyboard.Listener(on_press = lambda key, injected: self.record(self.on_press(key, injected)),
+                                                   on_release = lambda key, injected: self.record(self.on_release(key, injected)))
+        self.keyboard_listener.start()
         # Only bother sending mouse data to the recorder if we're actually recording it
-        if record_mouse:
-            # Create a MoveEvent at the mouse's initial position as the first event, as this is not saved otherwise
-            # Ensures mouse begins at the correct location, only relevant if a ButtonEvent occurs before a MoveEvent
-            mouse_pos = mouse.get_position()
-            mouse_pos = mouse.MoveEvent(mouse_pos[0], mouse_pos[1], time.time())
-            self.events.append(mouse_pos)
-            mouse.hook(self.events.append)
+        if self.record_mouse:
+            self.mouse_listener = mouse.Listener(on_move = lambda x, y, injected: self.record(self.on_move(x, y, injected)),
+                                                 on_click = lambda x, y, button, pressed, injected: self.record(self.on_click(x, y, button, pressed, injected)),
+                                                 on_scroll = lambda x, y, dx, dy, injected: self.record(self.on_scroll(x, y, dx, dy, injected)))
+            self.mouse_listener.start()
     
     def test_hotstrings(self):
         """Tests every hotstring to verify it gives the correct output, and runs the unit tests"""
@@ -842,15 +879,19 @@ class Hotstrings(QObject):
     def write(self, text):
         """Writes the provided text"""
         if text:
+            text = text.encode('utf-8').decode('utf-8')
             while '\n' in text:
                 # It works without doing this, but it works as if just pressing 'enter'
                 # In chat programs like discord this automatically sends messages, which is annoying
                 # So this enters linebreaks as shift+enter instead, to avoid that
                 index = text.index('\n')
-                keyboard.write(text[:index])
-                keyboard.press_and_release('shift+enter')
+                self.keyboard.type(text[:index])
+                self.keyboard.press(keyboard.Key.shift)
+                self.keyboard.press(keyboard.Key.enter)
+                self.keyboard.release(keyboard.Key.enter)
+                self.keyboard.release(keyboard.Key.shift)
                 text = text[index + 1:]
-            keyboard.write(text)
+            self.keyboard.type(text)
             # Save the last output, which is used to define the special '_' variable
             self.last_output = text
 
@@ -863,10 +904,9 @@ def main():
         else:
             traceback.print_exception(exc_type, exc_value, exc_tb)
         app.quit()
-        sys.exit()
     #sys.excepthook = excepthook
     while not hotstrings.quit_requested:
-        app.exec_()
+        app.exec()
 
 if __name__ == '__main__':
     try:

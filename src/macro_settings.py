@@ -1,9 +1,11 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QRadioButton, QSlider, QLabel, QLineEdit, QPushButton, QDialogButtonBox, QCheckBox
-from PyQt5.QtGui import QIntValidator
-from PyQt5.QtCore import Qt
-import keyboard
 from time import sleep
 import logging
+import traceback
+
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QRadioButton, QSlider, QLabel, QLineEdit, QPushButton, QDialogButtonBox, QCheckBox
+from PyQt6.QtGui import QIntValidator
+from PyQt6.QtCore import Qt
+from pynput import keyboard
 
 logging.basicConfig(
     filename='log.txt', 
@@ -27,7 +29,7 @@ class Macro_Settings(QWidget):
         self.playback_box = QGroupBox("Playback speed")
         playback_speed_layout = QHBoxLayout()
         self.speed_label_left = QLabel("Speed:")
-        self.slider = QSlider(Qt.Horizontal)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(0, 35)
         self.slider.setValue(9)
         self.speed_label_right = QLabel()
@@ -95,9 +97,9 @@ class Macro_Settings(QWidget):
         self.hotkey_box.setLayout(hotkey_layout)
         
         # OK and Cancel buttons
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.ok)
-        self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
         self.button_box.rejected.connect(self.cancel)
         
         # Add widgets to main layout
@@ -137,50 +139,80 @@ class Macro_Settings(QWidget):
             # The read_hotkey() function below locks the thread, but the below line ensures
             # the button visually updates with the above changes before this happens
             QApplication.processEvents()
-            keyboard.unhook_all()
-            state = keyboard.stash_state()
-            try:
-                # Waits until it detects the user has pressed some key combo, then returns it
-                hotkey = keyboard.read_hotkey()
-            except ValueError:
-                # Caused when Fn key is pressed, bug in the keyboard library
-                hotkey = ''
-            keyboard.restore_modifiers(state)
-            self.hotstrings.create_hooks()
-            # Show the detected hotkey to the user for verification
-            self.hotkey_textbox.setText(hotkey)
-            self.detect_button.setEnabled(True)
-            self.detect_button.setText('Detect')
-            self.validate_settings()
+            # Waits until it detects the user has pressed some key combo, then returns it
+            self.detect_hotkey()
         except Exception:
             logging.exception('Unhandled exception in handle_detect_button')
     
+    def detect_hotkey(self):
+        self.hotstrings.clear_hooks()
+        self.pressed = set()
+        self.hotkeys = []
+        self.keyboard_listener = keyboard.Listener(on_press = lambda key, injected: self.handle_key(key, add_to_pressed = True),
+                                                   on_release = lambda key, injected: self.handle_key(key, remove_from_pressed = True))
+        self.keyboard_listener.start()
+    
+    def handle_key(self, key, add_to_pressed = False, remove_from_pressed = False):
+        canonical_key = self.keyboard_listener.canonical(key)
+        if hasattr(canonical_key, 'char'):
+            canonical_key = canonical_key.char
+        elif hasattr(canonical_key, 'name') and canonical_key.name is not None:
+            canonical_key = canonical_key.name
+        if not isinstance(canonical_key, str):
+            canonical_key = key.name
+        if add_to_pressed:
+            self.pressed.add(canonical_key)
+        elif remove_from_pressed:
+            self.pressed.discard(canonical_key)
+        self.check_hotkeys()
+
+    def sort_hotkeys(self):
+        modifier_order = ['ctrl', 'alt', 'shift', 'cmd']
+        modifiers = [hotkey for hotkey in modifier_order if hotkey in self.hotkeys]
+        multi_char = [hotkey for hotkey in self.hotkeys if len(hotkey) > 1 and hotkey not in modifiers]
+        single_char = [hotkey for hotkey in self.hotkeys if len(hotkey) == 1]
+        self.hotkeys = modifiers + sorted(multi_char) + sorted(single_char)
+    
+    def check_hotkeys(self):
+        if len(self.pressed) >= len(self.hotkeys):
+            self.hotkeys = list(self.pressed)
+            self.sort_hotkeys()
+            text = '+'.join(self.hotkeys)
+            self.hotkey_textbox.setText(text)
+        if len(self.hotkeys) > 0 and len(self.pressed) == 0:
+            self.keyboard_listener.stop()
+            self.hotstrings.create_hooks()
+            text = '+'.join(self.hotkeys)
+            self.hotkey_textbox.setText(text)
+            self.detect_button.setEnabled(True)
+            self.detect_button.setText('Detect')
+            self.validate_settings()
+    
     def ok(self):
         """Processes and returns selected settings after user clicks OK"""
-        hotkey = self.hotkey_textbox.text()
-        # [:-1] is because the label always ends in x, like "2x"
-        speed_factor = float(self.speed_label_right.text()[:-1])
-        if self.radio_once.isChecked():
-            repeat_count = 1
-        elif self.radio_n.isChecked():
-            repeat_count = int(self.n_textbox.text())
-        elif self.radio_inf.isChecked():
-            repeat_count = float('inf')
-        skip_paths = self.skip_paths_checkbox.isChecked()
-        args = {'hotkey': hotkey,
-                'speed_factor': speed_factor,
-                'repeat_count': repeat_count,
-                'skip_paths': skip_paths,
-                'events': self.events}
-        if self.macro: # We are editing an existing macro
-            # So delete it before we recreate it - creates a dupe if they changed the hotkey otherwise
-            del self.hotstrings.user_macros[self.macro['hotkey']]
-        self.hotstrings.user_macros[hotkey] = args
-        self.hotstrings.save_settings()
-        self.hotstrings.load_settings()
-        self.hotstrings.create_hooks()
-        # Close the window
-        self.close()
+        try:
+            # [:-1] is because the label always ends in x, like "2x"
+            speed_factor = float(self.speed_label_right.text()[:-1])
+            if self.radio_once.isChecked():
+                repeat_count = 1
+            elif self.radio_n.isChecked():
+                repeat_count = int(self.n_textbox.text())
+            elif self.radio_inf.isChecked():
+                repeat_count = float('inf')
+            skip_paths = self.skip_paths_checkbox.isChecked()
+            args = {'speed_factor': speed_factor,
+                    'repeat_count': repeat_count,
+                    'skip_paths': skip_paths,
+                    'events': self.events}
+            self.hotstrings.user_macros.append([self.hotkeys, args])
+            self.hotstrings.save_settings()
+            self.hotstrings.load_settings()
+            self.hotstrings.create_hooks()
+            # Close the window
+            self.close()
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
     
     def set_macro(self):
         """Sets all settings to match those of self.macro"""
@@ -190,12 +222,13 @@ class Macro_Settings(QWidget):
                         2: 14, 2.5: 15, 3: 16, 4: 17, 5: 18, 6: 19, 7: 20, 8: 21,
                         9: 22, 10: 23, 15: 24, 20: 25, 25: 26, 30: 27, 40: 28, 50: 29,
                         60: 30, 70: 31, 80: 32, 90: 33, 100: 34, float('inf'): 35}
-        self.hotkey_textbox.setText(self.macro['hotkey'])
-        speed_factor = mapping_dict[self.macro['speed_factor']]
+        self.hotkeys = self.macro[0]
+        self.hotkey_textbox.setText('+'.join(self.hotkeys))
+        speed_factor = mapping_dict[self.macro[1]['speed_factor']]
         self.slider.setValue(speed_factor)
         # Calling this will update the label appropriately
         self.change_slider(speed_factor)
-        repeat_count = self.macro['repeat_count']
+        repeat_count = self.macro[1]['repeat_count']
         if repeat_count == 1:
             self.radio_once.setChecked(True)
             self.radio_n.setChecked(False)
@@ -213,8 +246,8 @@ class Macro_Settings(QWidget):
             self.n_textbox.setEnabled(True)
             self.n_textbox.setText(str(repeat_count))
             self.n = repeat_count
-        self.skip_paths_checkbox.setChecked(self.macro['skip_paths'])
-        self.events = self.macro['events']
+        self.skip_paths_checkbox.setChecked(self.macro[1]['skip_paths'])
+        self.events = self.macro[1]['events']
     
     def toggle_n_textbox(self, checked):
         """Enables or disables the 'Repeat n times' textbox with its associated ratio button"""
@@ -255,15 +288,15 @@ class Macro_Settings(QWidget):
         """Enables the OK button if the currently selected settings are acceptable, disables it otherwise"""
         if self.hotkey_textbox.text() == '':
             # Definitely can't save without a hotkey
-            return self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+            return self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
         if self.radio_n.isChecked() and self.n_textbox.text() == '':
             # "Repeat n times" is selected but nothing is entered into the textbox, indicating how many times to repeat
-            return self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+            return self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
         if self.radio_inf.isChecked() and self.speed_label_right.text() == 'infx':
             # Don't allow repeating the macro "Until I stop it" while also having the max speed selected
             # Pretty much always just leads to locking up the machine
-            return self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
-        return self.button_box.button(QDialogButtonBox.Ok).setEnabled(True)
+            return self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
+        return self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
 
 if __name__ == "__main__":
     window = Macro_Settings()
