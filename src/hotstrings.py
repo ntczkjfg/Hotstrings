@@ -323,10 +323,12 @@ class Hotstrings(QObject):
             paused = Path(meipass) / 'paused.ico'
             self.paused_icon = str(paused) if paused.exists() else False
         # If all else fails just use a default icon for both
+        if (not self.normal_icon) or (not self.paused_icon):
+            from PyQt6.QtWidgets import QStyle
         if not self.normal_icon:
-            self.normal_icon = QIcon(QApplication.style().standardIcon(QApplication.style().SP_ComputerIcon))
+            self.normal_icon = QIcon(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
         if not self.paused_icon:
-            self.paused_icon = QIcon(QApplication.style().standardIcon(QApplication.style().SP_ComputerIcon))
+            self.paused_icon = QIcon(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
     
     def get_key_name(self, key, add_to_pressed = False, remove_from_pressed = False):
         canonical_key = self.keyboard_listener.canonical(key)
@@ -334,7 +336,7 @@ class Hotstrings(QObject):
             canonical_key = canonical_key.char
         elif hasattr(canonical_key, 'name') and canonical_key.name is not None:
             canonical_key = canonical_key.name
-        if not isinstance(canonical_key, str):
+        if not isinstance(canonical_key, str) and hasattr(key, 'name'):
             canonical_key = key.name
         if add_to_pressed:
             self.pressed.add(canonical_key)
@@ -361,13 +363,7 @@ class Hotstrings(QObject):
             if len(user_input) == 0:
                 return ''
         for i, key in enumerate(user_input):
-            if key == 'v':
-                if len(user_input) > i+1 and user_input[i+1].startswith('_paste_'):
-                    # User hit ctrl+v to paste, skip - will be handled in next event
-                    continue
-                typed_string.insert(insert_pos, key)
-                insert_pos += 1
-            elif len(key) == 1:
+            if len(key) == 1:
                 # User typed a regular character, insert it into their typed string
                 typed_string.insert(insert_pos, key)
                 insert_pos += 1
@@ -500,7 +496,8 @@ class Hotstrings(QObject):
                 return
         else:
             # Regular input, just toss it in the queue
-            self.user_input.append(key)
+            if key != 'v' or 'ctrl' not in self.pressed:
+                self.user_input.append(key)
     
     def handle_input_wrapper(self, key, injected):
         """Calls handle_input, logs current state in event of errors"""
