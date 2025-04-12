@@ -43,8 +43,8 @@ class Hotstrings(QObject):
         # Used to help gather input for bulk functions
         self.bulk = None
         self.calc = Calc(self)
-        self.cwd = Path.cwd()
-        self.settings_path = self.cwd / 'settings.json'
+        self.dir = Path(__file__).parent
+        self.settings_path = Path.cwd() / 'settings.json'
         if self.settings_path.exists():
             self.load_settings()
         else:
@@ -301,26 +301,26 @@ class Hotstrings(QObject):
         QApplication.quit()
         
     def find_tray_icons(self):
-        """Locates .ico files to use for system tray icons, or uses default images if none are present"""
+        """Locates .png files to use for system tray icons, or uses default images if none are present"""
         # Define the system tray icons to be used normally, and when paused
         # Prefer local icon files if present
-        normal = self.cwd / 'normal.ico'
+        normal = self.dir / 'normal.png'
         self.normal_icon = str(normal) if normal.exists() else False
-        paused = self.cwd / 'paused.ico'
+        paused = self.dir / 'paused.png'
         self.paused_icon = str(paused) if paused.exists() else False
         # If no local files, try in /assets/images
         if not self.normal_icon:
-            normal = self.cwd.parent / 'assets/images/normal.ico'
+            normal = self.dir.parent / 'assets/images/normal.png'
             self.normal_icon = str(normal) if normal.exists() else False
         if not self.paused_icon:
-            paused = self.cwd.parent / 'assets/images/paused.ico'
+            paused = self.dir.parent / 'assets/images/paused.png'
             self.paused_icon = str(paused) if paused.exists() else False
         # If running from .exe, pyinstaller makes temp directory here, which will contain icons
         if not self.normal_icon and (meipass := getattr(sys, '_MEIPASS', False)):
-            normal = Path(meipass) / 'normal.ico'
+            normal = Path(meipass) / 'normal.png'
             self.normal_icon = str(normal) if normal.exists() else False
         if not self.paused_icon and (meipass := getattr(sys, '_MEIPASS', False)):
-            paused = Path(meipass) / 'paused.ico'
+            paused = Path(meipass) / 'paused.png'
             self.paused_icon = str(paused) if paused.exists() else False
         # If all else fails just use a default icon for both
         if (not self.normal_icon) or (not self.paused_icon):
@@ -536,7 +536,7 @@ class Hotstrings(QObject):
     def load_hotstrings(self):
         """Reads the hotstrings.json file and loads it into memory"""
         # Prefer a hotstrings.json in the cwd if it exists
-        hotstrings_path = self.cwd / 'hotstrings.json'
+        hotstrings_path = self.dir / 'hotstrings.json'
         if not hotstrings_path.exists():
             # Otherwise check the MEIPASS directory, which the pyinstaller .exe creates
             if meipass := getattr(sys, '_MEIPASS', False):
