@@ -81,6 +81,7 @@ class Hotstrings(QObject):
             'edit macro': self.edit_macro,
             'emojify': bulk.emojify,
             'endchar': self.change_endchar,
+            'flag': bulk.flag,
             'flip': bulk.flip,
             'flipcase': bulk.flip_case,
             'frac': self.calc.make_rational,

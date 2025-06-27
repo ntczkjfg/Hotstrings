@@ -169,6 +169,20 @@ def emojify(user_input = None):
     output = ''.join(translation_dict.get(char, char) for char in user_input)
     return output
 
+def flag(user_input = None):
+    """Converts input to regional indicators"""
+    if not user_input:
+        return {'max': 500,
+                'time': 90}
+    translation_dict = {
+        'a': '🇦', 'b': '🇧', 'c': '🇨', 'd': '🇩', 'e': '🇪', 'f': '🇫',
+        'g': '🇬', 'h': '🇭', 'i': '🇮', 'j': '🇯', 'k': '🇰', 'l': '🇱',
+        'm': '🇲', 'n': '🇳', 'o': '🇴', 'p': '🇵', 'q': '🇶', 'r': '🇷',
+        's': '🇸', 't': '🇹', 'u': '🇺', 'v': '🇻', 'w': '🇼', 'x': '🇽',
+        'y': '🇾', 'z': '🇿'}
+    output = ''.join(translation_dict.get(char, char) for char in user_input)
+    return output
+
 def flip(user_input = None):
     """Flips the input text upside-down"""
     if not user_input:
