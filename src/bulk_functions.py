@@ -2,6 +2,23 @@ import random
 import re
 from PyQt6.QtWidgets import QFileDialog
 
+def base64(user_input = None):
+    """Converts input to base64"""
+    if not user_input:
+        return {'max': 5000,
+                'time': 90}
+    b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    bits = ''.join(f"{ord(c):08b}" for c in user_input)
+    while len(bits) % 6 != 0:
+        bits += '0'
+    output = ''
+    for i in range(0, len(bits), 6):
+        chunk = bits[i:i+6]
+        output += b64[int(chunk, 2)]
+    while len(output) % 4 != 0:
+        output += '='
+    return output
+
 def blackboard_bold(user_input = None):
     """Convert input into blackboard bold"""
     if not user_input:
@@ -117,12 +134,47 @@ def delete_macro(hotstrings, user_input = None):
     hotstrings.create_hooks()
     return output
 
+def dvorak(user_input = None):
+    """Converts input between the Qwerty and Dvorak keyboard layouts"""
+    if not user_input:
+        return {'max': 500,
+                'time': 90}
+    pre  = r"""1234567890-=qwertyuiop[]\asdfghjkl;'zxcvbnm,./!@#$%^&*()_+QWERTYUIOP{}|ASDFGHJKL:"ZXCVBNM<>?"""
+    post = r"""1234567890[]',.pyfgcrl/=\aoeuidhtns-;qjkxbmwvz!@#$%^&*(){}"<>PYFGCRL?+|AOEUIDHTNS_:QJKXBMWVZ"""
+    translation_dict = {pre[i]: post[i] for i in range(len(pre))}
+    output = ''.join(translation_dict.get(char, char) for char in user_input)
+    return output
+
+def emojify(user_input = None):
+    """Converts input into emojis"""
+    if not user_input:
+        return {'max': 500,
+                'time': 90}
+    user_input = user_input.replace('?!', '⁉️').replace('!!', '‼️').replace('10', '🔟')
+    translation_dict = {
+        'a': '​🇦', 'b': '​🇧', 'c': '​🇨', 'd': '​🇩', 'e': '​🇪', 'f': '​🇫',
+        'g': '​🇬', 'h': '​🇭', 'i': '​🇮', 'j': '​🇯', 'k': '​🇰', 'l': '​🇱',
+        'm': '​🇲', 'n': '​🇳', 'o': '​🇴', 'p': '​🇵', 'q': '​🇶', 'r': '​🇷',
+        's': '​🇸', 't': '​🇹', 'u': '​🇺', 'v': '​🇻', 'w': '​🇼', 'x': '​🇽',
+        'y': '​🇾', 'z': '​🇿',
+        'A': '​🇦', 'B': '​🇧', 'C': '​🇨', 'D': '​🇩', 'E': '​🇪', 'F': '​🇫',
+        'G': '​🇬', 'H': '​🇭', 'I': '​🇮', 'J': '​🇯', 'K': '​🇰', 'L': '​🇱',
+        'M': '​🇲', 'N': '​🇳', 'O': '​🇴', 'P': '​🇵', 'Q': '​🇶', 'R': '​🇷',
+        'S': '​🇸', 'T': '​🇹', 'U': '​🇺', 'V': '​🇻', 'W': '​🇼', 'X': '​🇽',
+        'Y': '​🇾', 'Z': '​🇿',
+        '0': '0️⃣', '1': '1️⃣', '2': '2️⃣', '3': '3️⃣', '4': '4️⃣',
+        '5': '5️⃣', '6': '6️⃣', '7': '7️⃣', '8': '8️⃣', '9': '9️⃣',
+        '!': '❗', '!!': '‼️', '?': '❓', '!?': '⁉️',
+        '*': '*️⃣', '#': '#️⃣'}
+    output = ''.join(translation_dict.get(char, char) for char in user_input)
+    return output
+
 def flip(user_input = None):
     """Flips the input text upside-down"""
     if not user_input:
         return {'max': 500,
                 'time': 90}
-    pre =  r"/\&><}{][)(_!?.',^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`⅋‾¡¿˙ƖᄅƐㄣϛㄥɐɔǝɟƃɥᴉɾʞɯɹʇʌʍʎ∀ꓭƆƎℲפſ˥Ԁ┴∩Λ⅄"
+    pre  = r"/\&><}{][)(_!?.',^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`⅋‾¡¿˙ƖᄅƐㄣϛㄥɐɔǝɟƃɥᴉɾʞɯɹʇʌʍʎ∀ꓭƆƎℲפſ˥Ԁ┴∩Λ⅄"
     post = r"/\⅋<>{}[]()‾¡¿˙,'v0ƖᄅƐㄣϛ9ㄥ86ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀ꓭƆpƎℲפHIſʞ˥WNOԀQɹS┴∩ΛMX⅄Z,&_!?.123457acefghijkmrtvwyABCEFGJLPTUVY"
     translation_dict = {pre[i]: post[i] for i in range(len(pre))}
     translation_dict['"'] = ',,'
@@ -135,7 +187,7 @@ def flip_case(user_input = None):
     if not user_input:
         return {'max': 500,
                 'time': 90}
-    pre = r'''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'''
+    pre  = r'''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'''
     post = r'''ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'''
     translation_dict = {pre[i]: post[i] for i in range(len(pre))}
     output = ''.join(translation_dict.get(char, char) for char in user_input)
@@ -331,10 +383,54 @@ def python(user_input = None):
         output = custom_print('', outputting = True)
     return output
 
+def qwerty(user_input = None):
+    """Converts input between the Dvorak and Qwerty keyboard layouts"""
+    if not user_input:
+        return {'max': 500,
+                'time': 90}
+    pre  = r"""1234567890[]',.pyfgcrl/=\aoeuidhtns-;qjkxbmwvz!@#$%^&*(){}"<>PYFGCRL?+|AOEUIDHTNS_:QJKXBMWVZ"""
+    post = r"""1234567890-=qwertyuiop[]\asdfghjkl;'zxcvbnm,./!@#$%^&*()_+QWERTYUIOP{}|ASDFGHJKL:"ZXCVBNM<>?"""
+    translation_dict = {pre[i]: post[i] for i in range(len(pre))}
+    output = ''.join(translation_dict.get(char, char) for char in user_input)
+    return output
+
 def random_heart():
     """Returns a randomly colored heart"""
     hearts = ['💚', '🤎', '💙', '🧡', '🤍', '🖤', '❤️', '💛', '💜', '🩷', '🩶', '🩵']
     return random.choice(hearts)
+
+def roman(user_input = None):
+    """Converts input to Roman Numerals"""
+    if not user_input:
+        return {'max': 500,
+                'time': 90}
+    negative = False
+    try:
+        num = int(user_input)
+        if num < 0:
+            num *= -1
+            negative = True
+        if num == 0 or num >= 4000:
+            return user_input
+        num = str(num)
+    except ValueError:
+        return user_input
+    ones = {'0': '', '1': 'I', '2': 'II', '3': 'III', '4': 'IV',
+            '5': 'V', '6': 'VI', '7': 'VII', '8': 'VIII', '9': 'IX'}
+    tens = {'0': '', '1': 'X', '2': 'XX', '3': 'XXX', '4': 'XL',
+            '5': 'L', '6': 'LX', '7': 'LXX', '8': 'LXXX', '9': 'XC'}
+    hundreds = {'0': '', '1': 'C', '2': 'CC', '3': 'CCC', '4': 'CD',
+                '5': 'D', '6': 'DC', '7': 'DCC', '8': 'DCCC', '9': 'CM'}
+    thousands = {'1': 'M', '2': 'MM', '3': 'MMM'}
+    dicts = [0, ones, tens, hundreds, thousands]
+    i = 1
+    output = ''
+    while i <= len(num):
+        output = dicts[i][num[-i]] + output
+        i += 1
+    if negative:
+        output = '-' + output
+    return output
 
 def rot13(user_input = None):
     """Applies the rot13 shift cypher to input"""
@@ -417,6 +513,22 @@ def superscript(user_input = None):
     output = ''.join(translation_dict.get(char, char) for char in user_input)
     return output
 
+def unbase64(user_input = None):
+    """Converts input from base64"""
+    if not user_input:
+        return {'max': 5000,
+                'time': 90}
+    b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    user_input = user_input.rstrip('=')
+    if not (set(user_input) <= set(b64)):
+        return 'Invalid base64: Contains invalid characters'
+    bits = ''.join(f'{b64.index(char):06b}' for char in user_input)
+    output = ''
+    for i in range(0, len(bits), 8):
+        byte = bits[i:i+8]
+        output += chr(int(byte, 2))
+    return output
+
 def unbraille(user_input = None):
     """Converts input from braille to plain text"""
     if not user_input:
@@ -481,6 +593,38 @@ def unmorse(user_input = None):
     for key in translation_dict:
         output = output.replace(key, translation_dict[key].upper())
     return output
+
+def unroman(user_input = None):
+    """Converts from Roman Numeral to decimal"""
+    if not user_input:
+        return {'max': 500,
+                'time': 90}
+    negative = False
+    if user_input.startswith('-'):
+        user_input = user_input[1:]
+        negative = True
+    if not user_input:
+        return 'Not a valid Roman Numeral'
+    user_input = user_input.upper()
+    if not (set(user_input) <= set('IVXLCDM')):
+        return 'Not a valid Roman Numeral'
+    thousands = {'MMM': 3000, 'MM': 2000, 'M': 1000}
+    hundreds  = {'DCCC': 800, 'CCC': 300, 'DCC': 700, 'CC': 200, 'CD': 400, 'DC': 600, 'CM': 900, 'C': 100, 'D': 500}
+    tens      = {'LXXX': 80, 'XXX': 30, 'LXX': 70, 'XX': 20, 'XL': 40, 'LX': 60, 'XC': 90, 'X': 10, 'L': 50}
+    ones      = {'VIII': 8, 'III': 3, 'VII': 7, 'II': 2, 'IV': 4, 'VI': 6, 'IX': 9, 'I': 1, 'V': 5}
+    dicts = [thousands, hundreds, tens, ones]
+    output = 0
+    for translation_dict in dicts:
+        for key, value in translation_dict.items():
+            if user_input.startswith(key):
+                output += value
+                user_input = user_input[len(key):]
+                break
+    if user_input:
+        return 'Not a valid Roman Numeral'
+    if negative:
+        output *= -1
+    return str(output)
 
 def unrune(user_input = None):
     """Converts input from futhark runes to plain text"""

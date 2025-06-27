@@ -7,9 +7,14 @@ from pathlib import Path
 import re
 import subprocess
 import traceback
+import os
+
+if 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower():
+    from evdev import UInput, ecodes
+else:
+    import pyperclip
 
 from pynput import keyboard, mouse
-import pyperclip
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu,
@@ -22,20 +27,24 @@ from macro_settings import Macro_Settings
 
 
 logging.basicConfig(
-    filename='log.txt', 
-    level=logging.DEBUG,
+    filename='log.txt',
+    level=logging.ERROR,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
 class Hotstrings(QObject):
     macro_signal = pyqtSignal()
     edit_macro_signal = pyqtSignal(object)
+    quit_signal = pyqtSignal()
     program_hotstring_signal = pyqtSignal(object, str)
-    def __init__(self):
+    def __init__(self, app):
         super().__init__()
+        self.app = app
+        self.wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
         self.quit_requested = False
         self.macro_signal.connect(self.spawn_macro_settings)
         self.edit_macro_signal.connect(self.spawn_macro_settings)
+        self.quit_signal.connect(self.exit_app)
         self.program_hotstring_signal.connect(bulk.program_hotstring_2)
         # State flags
         self.paused = False
@@ -55,6 +64,7 @@ class Hotstrings(QObject):
         self.last_output = ''
         self.load_hotstrings()
         self.callables = {
+            'base64': bulk.base64,
             'bb': bulk.blackboard_bold,
             'bold': bulk.bold,
             'boldcursive': bulk.boldcursive,
@@ -67,7 +77,10 @@ class Hotstrings(QObject):
             'cursive': bulk.cursive,
             'delete macro': lambda user_input = None: bulk.delete_macro(self, user_input),
             'delete macros': lambda: bulk.delete_macro(self, 'all'),
+            'dvorak': bulk.dvorak,
             'edit macro': self.edit_macro,
+            'emojify': bulk.emojify,
+            'endchar': self.change_endchar,
             'flip': bulk.flip,
             'flipcase': bulk.flip_case,
             'frac': self.calc.make_rational,
@@ -89,10 +102,13 @@ class Hotstrings(QObject):
             'morse2': bulk.morse2,
             'program hotstring': lambda user_input = None: bulk.program_hotstring_1(self, user_input),
             'python': bulk.python,
+            'quit': self.quit_signal.emit,
+            'qwerty': bulk.qwerty,
             'randomheart': bulk.random_heart,
             'record': self.start_record,
             'recordk': lambda: self.start_record(record_mouse = False),
             'recordm': lambda: self.start_record(record_keyboard = False),
+            'roman': bulk.roman,
             'rot13': bulk.rot13,
             'rune': bulk.rune,
             'rune2': bulk.rune2,
@@ -102,11 +118,13 @@ class Hotstrings(QObject):
             '__': bulk.subscript,
             '^^': bulk.superscript,
             'test': self.test_hotstrings,
+            'unbase64': bulk.unbase64,
             'unbraille': bulk.unbraille,
             'underline': bulk.underline,
             'unhide': bulk.unhide,
             'U+': bulk.unicode,
             'unmorse': bulk.unmorse,
+            'unroman': bulk.unroman,
             'unrune': bulk.unrune,
             'unrune2': bulk.unrune2,
             'vars': lambda: self.calc.calc('vars')
@@ -124,13 +142,18 @@ class Hotstrings(QObject):
         self.keyboard = keyboard.Controller()
         self.mouse = mouse.Controller()
         self.pressed = set()
-    
+        if self.wayland:
+            self.username, self.uid = self.find_wayland_user()
+            if not self.username:
+                raise RuntimeError('No active Wayland user found')
+            self.ui = UInput({ecodes.EV_KEY: [ecodes.KEY_LEFTCTRL, ecodes.KEY_V],
+                              ecodes.EV_SYN: []})
+
     def backspace(self, n):
         """Sends n backspace presses"""
         for _ in range(n):
-            self.keyboard.press(keyboard.Key.backspace)
-            self.keyboard.release(keyboard.Key.backspace)
-    
+            self.keyboard.tap(keyboard.Key.backspace)
+
     def change_endchar(self):
         """Changes the endchar"""
         text, ok = QInputDialog.getText(None, 'Change endchar', f'Enter the new endchar:')
@@ -143,13 +166,15 @@ class Hotstrings(QObject):
                 dlg.setWindowTitle('Setting endchar failed')
                 dlg.setText('Error: The endchar must be exactly 1 character. No changes made.')
                 dlg.exec()
-    
+
     def check_hotkeys(self):
         for hotkey in self.hotkeys:
             if self.is_hotkey_pressed(hotkey[0]):
+                if self.paused and hotkey[1] != self.toggle_pause:
+                    return
                 hotkey[1]()
                 return
-    
+
     def check_hotstrings(self, typed_string, testing = False):
         """Checks what the user typed to see if it contains a hotstring"""
         hs, rp = '', None
@@ -192,7 +217,7 @@ class Hotstrings(QObject):
                     # If it returns a string, no further input is needed - just write the output!
                     self.write(output)
             else:
-                # It was a basic hotstring - write the output! 
+                # It was a basic hotstring - write the output!
                 self.write(rp)
         else:
             for program_hotstring in self.program_hotstrings:
@@ -203,27 +228,30 @@ class Hotstrings(QObject):
             if match := re.search(r'(-?[\d]*\.?[\d]*)([cCfF])$', typed_string):
                 # User input ended in a celsius or fahrenheit temperature like "14.7f" - convert it to the other
                 self.quick_temp(match)
-    
+
     def clear_hooks(self):
-        if self.mouse_listener.running:
+        if not self.wayland and self.mouse_listener.running:
             self.mouse_listener.stop()
+            self.mouse_listener.join()
         if self.keyboard_listener.running:
             self.keyboard_listener.stop()
+            self.keyboard_listener.join()
         self.hotkeys = []
-    
-    def clear_input(self):
+
+    def clear_input(self, *args):
         """Clears user_input and ends any bulk collection"""
         self.user_input.clear()
         self.bulk = None
-    
+
     def create_hooks(self):
         """Removes any existing hooks, then creates all the usual ones"""
         self.clear_hooks()
-        # Clicking the mouse clears input - makes it impossible to determine what was actually typed
-        self.mouse_listener = mouse.Listener(on_click = self.clear_input)
-        self.mouse_listener.start()
+        if not self.wayland:
+            # Clicking the mouse clears input - makes it impossible to determine what was actually typed
+            self.mouse_listener = mouse.Listener(on_click = self.clear_input)
+            self.mouse_listener.start()
         self.keyboard_listener = keyboard.Listener(on_press = self.handle_input_wrapper,
-                                                   on_release = self.on_release)
+                                                   on_release = lambda key, injected: self.get_key_name(key, remove_from_pressed = True))
         self.keyboard_listener.start()
         self.hotkeys.append([['cmd', 'z'], self.toggle_pause])
         self.hotkeys.append([['ctrl', 'v'], self.pasted])
@@ -235,7 +263,7 @@ class Hotstrings(QObject):
             repeat_count = args['repeat_count']
             skip_paths = args['skip_paths']
             self.hotkeys.append([hotkey, lambda: self.play(hotkey, events, speed_factor, repeat_count, skip_paths)])
-    
+
     def create_tray_icon(self):
         """Creates the system tray icon and context menu"""
         # Defines self.normal_icon and self.paused_icon
@@ -260,7 +288,7 @@ class Hotstrings(QObject):
         self.menu.addAction(self.debug_menu_item)
         # Add Exit option to context menu
         self.exit_action = QAction('Exit')
-        self.exit_action.triggered.connect(self.exit_app)
+        self.exit_action.triggered.connect(self.quit_signal.emit)
         self.menu.addAction(self.exit_action)
         # Add the context menu to the system tray icon
         self.tray_icon.setContextMenu(self.menu)
@@ -268,7 +296,7 @@ class Hotstrings(QObject):
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
         # Display the tray icon
         self.tray_icon.show()
-    
+
     def debug(self):
         """Toggles the debug state on and off"""
         if self.debug_flag:
@@ -279,7 +307,7 @@ class Hotstrings(QObject):
             # Turn debug logging on
             self.debug_flag = True
             self.debug_menu_item.setText('Disable Debug Logging')
-    
+
     def edit_macro(self, user_input = None):
         """Opens the Macro Settings window to edit an existing macro"""
         if not user_input:
@@ -292,14 +320,16 @@ class Hotstrings(QObject):
             self.edit_macro_signal.emit(macro_to_edit)
         else:
             return 'Invalid macro'
-    
+
     def exit_app(self):
         """Quits the app"""
         self.quit_requested = True
         self.clear_hooks()
         self.tray_icon.hide()
-        QApplication.quit()
-        
+        if self.wayland:
+            self.ui.close()
+        self.app.quit()
+
     def find_tray_icons(self):
         """Locates .png files to use for system tray icons, or uses default images if none are present"""
         # Define the system tray icons to be used normally, and when paused
@@ -329,7 +359,42 @@ class Hotstrings(QObject):
             self.normal_icon = QIcon(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
         if not self.paused_icon:
             self.paused_icon = QIcon(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
-    
+
+    def find_wayland_user(self):
+        for uid_str in os.listdir('/run/user'):
+            path = f'/run/user/{uid_str}/wayland-0'
+            if os.path.exists(path):
+                try:
+                    username = subprocess.check_output(
+                        ['getent', 'passwd', uid_str],
+                        text=True
+                    ).split(':')[0]
+                    return username, uid_str
+                except subprocess.CalledProcessError:
+                    continue
+        return None, None
+
+    def get_clipboard(self):
+        if not self.wayland:
+            return pyperclip.paste()
+        cmd = (
+            f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 '
+            f'wl-paste'
+        )
+        result = subprocess.run(
+            ['su', '-', self.username, '-c', cmd],
+            capture_output=True
+        )
+        if result.returncode == 0:
+            clipboard = result.stdout.strip()
+            try:
+                clipboard = clipboard.decode('utf-8')
+                return clipboard
+            except UnicodeDecodeError:
+                return clipboard
+        else:
+            return ''
+
     def get_key_name(self, key, add_to_pressed = False, remove_from_pressed = False):
         canonical_key = self.keyboard_listener.canonical(key)
         if hasattr(canonical_key, 'char') and canonical_key.char is not None:
@@ -348,7 +413,7 @@ class Hotstrings(QObject):
         elif hasattr(key, 'name') and key.name is not None:
             key = key.name
         return key if isinstance(key, str) and key.isprintable() else None
-    
+
     def get_typed_string(self, user_input, forgiving = False):
         """Parses user_input to determine what the user likely actually typed"""
         typed_string = []
@@ -356,13 +421,15 @@ class Hotstrings(QObject):
         insert_pos = 0
         if len(user_input) == 0:
             return ''
-        while user_input[0] in ['left', 'right', 'backspace', 'up', 'down']:
+        while user_input[0] in ['left', 'right', 'backspace', 'delete', 'up', 'down']:
             # None of these events mess up the string logic when at the start of a string
             # But removing them now allows the logic below to be simpler
             del user_input[0]
             if len(user_input) == 0:
                 return ''
         for i, key in enumerate(user_input):
+            if key == 'delete' and self.wayland:
+                key = 'backspace'
             if len(key) == 1:
                 # User typed a regular character, insert it into their typed string
                 typed_string.insert(insert_pos, key)
@@ -414,7 +481,7 @@ class Hotstrings(QObject):
                     typed_string.insert(insert_pos, char)
                     insert_pos += 1
         return ''.join(typed_string[:insert_pos])
-    
+
     def handle_input(self, key):
         """Handles all input"""
         if self.paused:
@@ -440,9 +507,9 @@ class Hotstrings(QObject):
                 if not text and self.bulk['func'] != self.calc.calculator:
                     # If nothing was typed, pull from the clipboard
                     # Don't do that in self.calc.calculator because entering no input is how you quit
-                    text = pyperclip.paste()
-                    if len(text) > self.bulk['max']:
-                        # Give up and do nothing if there's too much text in the clipboard
+                    text = self.get_clipboard()
+                    if len(text) > self.bulk['max'] or not isinstance(text, str):
+                        # Give up and do nothing if there's too much text in the clipboard (or if it isn't a string)
                         self.bulk = None
                         return
                 try:
@@ -498,8 +565,8 @@ class Hotstrings(QObject):
             # Regular input, just toss it in the queue
             if key != 'v' or 'ctrl' not in self.pressed:
                 self.user_input.append(key)
-    
-    def handle_input_wrapper(self, key, injected):
+
+    def handle_input_wrapper(self, key, injected = False):
         """Calls handle_input, logs current state in event of errors"""
         if injected:
             return
@@ -523,16 +590,16 @@ class Hotstrings(QObject):
             error_message.append(f'{self.get_typed_string(self.user_input, forgiving = True) = }')
             error_message.append('')
             logging.exception('\n'.join(error_message))
-    
+
     def is_any_pressed(self, keys):
         return any(key in self.pressed for key in keys)
-    
+
     def is_hotkey_pressed(self, keys):
         for key in self.pressed:
             if key in {'ctrl', 'alt', 'shift', 'cmd'} and key not in keys:
                 return False
         return all(key in self.pressed for key in keys)
-    
+
     def load_hotstrings(self):
         """Reads the hotstrings.json file and loads it into memory"""
         # Prefer a hotstrings.json in the cwd if it exists
@@ -552,7 +619,7 @@ class Hotstrings(QObject):
         self.Hotstrings = all_hotstrings['Hotstrings']
         # Case-insensitive hotstrings
         self.hotstrings = all_hotstrings['hotstrings']
-    
+
     def load_settings(self):
         """Loads settings from file"""
         with open(self.settings_path, 'r', encoding='utf-8') as f:
@@ -576,7 +643,7 @@ class Hotstrings(QObject):
         else:
             self.program_hotstrings = {}
         self.calc.update_user_funcs()
-    
+
     def log_state(self):
         """Adds current values various variables to the log file"""
         log_message = ['LOGGING CURRENT STATE']
@@ -598,7 +665,7 @@ class Hotstrings(QObject):
         log_message.append('END OF CURRENT STATE')
         log_message.append('')
         logging.info('\n'.join(log_message))
-    
+
     def macros(self):
         """Outputs a list of the user-defined macros"""
         output = []
@@ -608,7 +675,7 @@ class Hotstrings(QObject):
             return 'User macros:\n' + '\n'.join(output)
         else:
             return 'No user macros defined.'
-    
+
     def on_click(self, x, y, button, pressed, injected):
         event_type = 'mouse_click' if pressed else 'mouse_release'
         return {'event_type': event_type,
@@ -616,49 +683,49 @@ class Hotstrings(QObject):
                 'device': 'mouse',
                 'pos': (x, y),
                 'button': button}
-    
+
     def on_move(self, x, y, injected):
         return {'event_type': 'mouse_move',
                 'time': time.time(),
                 'device': 'mouse',
                 'pos': (x, y)}
-    
+
     def on_press(self, key, injected):
         return {'event_type': 'key_down',
                 'time': time.time(),
                 'device': 'keyboard',
                 'key': key,
                 'name': self.get_key_name(key, add_to_pressed = True)}
-    
+
     def on_release(self, key, injected):
         return {'event_type': 'key_up',
                 'time': time.time(),
                 'device': 'keyboard',
                 'key': key,
                 'name': self.get_key_name(key, remove_from_pressed = True)}
-    
+
     def on_scroll(self, x, y, dx, dy, injected):
         return {'event_type': 'mouse_scroll',
                 'time': time.time(),
                 'device': 'mouse',
                 'pos': (x, y),
                 'scroll': (dx, dy)}
-    
+
     def on_tray_icon_activated(self, reason):
         """Pauses the app when system tray icon is double clicked"""
         # This function basically just makes sure it takes a double click, not a single click, to do this
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.toggle_pause()
-    
+
     def pasted(self):
         """Detects paste events, adds them to bulk input"""
         # Custom way I store paste events
-        paste_event = '_paste_' + pyperclip.paste()
+        paste_event = '_paste_' + self.get_clipboard()
         if self.bulk:
             self.bulk['input'].append(paste_event)
         else:
             self.user_input.append(paste_event)
-    
+
     def play(self, hotkey, events, speed_factor, repeat_count, skip_paths):
         """Plays back a macro"""
         # Remove all hooks for playback
@@ -706,7 +773,7 @@ class Hotstrings(QObject):
             repeat_count -= 1
         # All done, rebuild hooks
         return self.create_hooks()
-    
+
     def program_hotstring(self, name):
         """Opens the specified file in a new process - useful for launching programs with hotstrings"""
         file_path = Path(self.program_hotstrings[name])
@@ -716,7 +783,7 @@ class Hotstrings(QObject):
                          cwd = file_cwd,
                          start_new_session = True,
                          shell = True)
-    
+
     def quick_temp(self, match):
         """Converts matched temperature between fahrenheit and celsius"""
         # match already contains a temperature, with group 1 being a number and group 2 being f or c
@@ -739,7 +806,7 @@ class Hotstrings(QObject):
             output = f'{temperature}℉'
         self.backspace(backspace_count)
         self.write(output)
-    
+
     def record(self, event):
         """Records keyboard and mouse events to create a macro"""
         if event['event_type'] == 'key_down' and event['name'] == self.endchar:
@@ -766,7 +833,7 @@ class Hotstrings(QObject):
                 self.events.append(event)
             elif self.record_mouse and event['device'] == 'mouse':
                 self.events.append(event)
-    
+
     def save_settings(self):
         """Saves current settings to file"""
         settings = {}
@@ -780,7 +847,7 @@ class Hotstrings(QObject):
                 settings['user_vars'][key] = str(value)
         with open(self.settings_path, 'w', encoding='utf-8') as f:
             json.dump(settings, f, indent=4, ensure_ascii=False)
-    
+
     def serialize_user_macros(self, deserialize = None):
         if deserialize:
             new_macros = deserialize
@@ -807,7 +874,34 @@ class Hotstrings(QObject):
                     elif 'button' in event:
                         new_macros[i][1]['events'][j]['button'] = event['button'].name
         return new_macros
-    
+
+    def set_clipboard(self, text):
+        if not self.wayland:
+            pyperclip.copy(text)
+            return
+        if isinstance(text, str):
+            cmd = (
+                f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 '
+                f'wl-copy'
+            )
+            subprocess.run(
+                ['su', '-', self.username, '-c', cmd],
+                input=text,
+                text=True
+            )
+        elif isinstance(text, bytes):
+            cmd = (
+                f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 '
+                f'wl-copy --type image/png'
+            )
+            proc = subprocess.Popen(
+                ['su', '-', self.username, '-c', cmd],
+                stdin=subprocess.PIPE
+            )
+            proc.stdin.write(text)
+            proc.stdin.close()
+            proc.wait()
+
     def spawn_macro_settings(self, macro = None):
         """Opens the window to configure and save macros"""
         try:
@@ -822,13 +916,13 @@ class Hotstrings(QObject):
             self.settings.show()
         except Exception as e:
             logging.exception('Unhandled exception in spawn_macro_settings\n')
-    
+
     def start_record(self, record_keyboard = True, record_mouse = True):
         """Sets up to record keyboard and mouse input for macro creation"""
         # Keyboard and mouse events will be stored in self.events
         self.events = []
         self.record_keyboard = record_keyboard
-        self.record_mouse = record_mouse
+        self.record_mouse = record_mouse and not self.wayland
         # Remove all hooks so we can redirect them to the recorder
         self.clear_hooks()
         # Keyboard data is always sent to the recorder, even if we aren't saving it, for endchar detection
@@ -841,7 +935,7 @@ class Hotstrings(QObject):
                                                  on_click = lambda x, y, button, pressed, injected: self.record(self.on_click(x, y, button, pressed, injected)),
                                                  on_scroll = lambda x, y, dx, dy, injected: self.record(self.on_scroll(x, y, dx, dy, injected)))
             self.mouse_listener.start()
-    
+
     def test_hotstrings(self):
         """Tests every hotstring to verify it gives the correct output, and runs the unit tests"""
         passes = 0
@@ -860,7 +954,7 @@ class Hotstrings(QObject):
         self.write(f'{passes = }, {fails = }\n')
         # After, run the unit tests
         return unit_tests()
-    
+
     def toggle_pause(self):
         """Toggles the current pause state and system tray icon"""
         self.paused = not self.paused
@@ -872,29 +966,45 @@ class Hotstrings(QObject):
             self.tray_icon.setToolTip('Hotstrings')
             self.pause_menu_item.setText('Pause')
             self.tray_icon.setIcon(QIcon(self.normal_icon))
-    
+
+    def wayland_type(self, text):
+        clipboard = self.get_clipboard()
+        self.set_clipboard(text)
+        # This code would be nice, but does not work for whatever reason
+        #with self.keyboard.pressed(keyboard.Key.ctrl):
+        #    self.keyboard.tap('v')
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 1)
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 0)
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 0)
+        self.ui.write(ecodes.EV_SYN, 0, 0)
+        self.set_clipboard(clipboard)
+
     def write(self, text):
         """Writes the provided text"""
-        if text:
-            text = text.encode('utf-8').decode('utf-8')
-            while '\n' in text:
-                # It works without doing this, but it works as if just pressing 'enter'
-                # In chat programs like discord this automatically sends messages, which is annoying
-                # So this enters linebreaks as shift+enter instead, to avoid that
-                index = text.index('\n')
+        if not text: return
+        text = text.encode('utf-8').decode('utf-8')
+        while '\n' in text:
+            # It works without doing this, but it works as if just pressing 'enter'
+            # In chat programs like discord this automatically sends messages, which is annoying
+            # So this enters linebreaks as shift+enter instead, to avoid that
+            index = text.index('\n')
+            if self.wayland:
+                self.wayland_type(text[:index])
+            else:
                 self.keyboard.type(text[:index])
-                self.keyboard.press(keyboard.Key.shift)
-                self.keyboard.press(keyboard.Key.enter)
-                self.keyboard.release(keyboard.Key.enter)
-                self.keyboard.release(keyboard.Key.shift)
-                text = text[index + 1:]
+            with self.keyboard.pressed(keyboard.Key.shift):
+                self.keyboard.tap(keyboard.Key.enter)
+            text = text[index + 1:]
+        if self.wayland:
+            self.wayland_type(text)
+        else:
             self.keyboard.type(text)
-            # Save the last output, which is used to define the special '_' variable
-            self.last_output = text
+        # Save the last output, which is used to define the special '_' variable
+        self.last_output = text
 
 def main():
-    app = QApplication([])
-    hotstrings = Hotstrings()
+    hotstrings = Hotstrings(QApplication([]))
     def excepthook(exc_type, exc_value, exc_tb):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_tb)
@@ -903,7 +1013,7 @@ def main():
         app.quit()
     #sys.excepthook = excepthook
     while not hotstrings.quit_requested:
-        app.exec()
+        hotstrings.app.exec()
 
 if __name__ == '__main__':
     try:
