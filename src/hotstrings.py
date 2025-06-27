@@ -9,9 +9,11 @@ import subprocess
 import traceback
 import os
 
-if 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower():
+linux = os.name == 'posix' and os.uname().sysname == 'Linux'
+wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
+if linux or wayland:
     from evdev import UInput, ecodes
-else:
+if not wayland:
     import pyperclip
 
 from pynput import keyboard, mouse
@@ -40,7 +42,11 @@ class Hotstrings(QObject):
     def __init__(self, app):
         super().__init__()
         self.app = app
-        self.wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
+        self.linux = os.name == 'posix' and os.uname().sysname == 'Linux'
+        if self.linux:
+            self.wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
+        else:
+            self.wayland = False
         self.quit_requested = False
         self.macro_signal.connect(self.spawn_macro_settings)
         self.edit_macro_signal.connect(self.spawn_macro_settings)
@@ -233,9 +239,14 @@ class Hotstrings(QObject):
     def clear_hooks(self):
         if not self.wayland and self.mouse_listener.running:
             self.mouse_listener.stop()
+            # The mouse listener won't actually quit until its next event - so we send a null event here
+            self.mouse.move(0, 0)
             self.mouse_listener.join()
         if self.keyboard_listener.running:
             self.keyboard_listener.stop()
+            # The keyboard listener won't actually quit until its next event - so we send one here
+            # Don't think I can do a null event but this one seems innocuous enough
+            self.keyboard.release(keyboard.Key.shift)
             self.keyboard_listener.join()
         self.hotkeys = []
 
@@ -509,13 +520,19 @@ class Hotstrings(QObject):
                     # If nothing was typed, pull from the clipboard
                     # Don't do that in self.calc.calculator because entering no input is how you quit
                     text = self.get_clipboard()
+                    if not isinstance(text, str):
+                        self.bulk = None
+                        return
                     if len(text) > self.bulk['max'] or not isinstance(text, str):
                         # Give up and do nothing if there's too much text in the clipboard (or if it isn't a string)
                         self.bulk = None
                         return
                 try:
                     # Send the input to the function
-                    output = self.bulk['func'](text)
+                    if isinstance(text, str):
+                        output = self.bulk['func'](text)
+                    else:
+                        output = None
                     if self.bulk['func'] == self.calc.calculator and output == 'end_calculator':
                         # Calculator sends that output when it's time to quit
                         # Remove 'func' so below code will properly exit
@@ -524,7 +541,8 @@ class Hotstrings(QObject):
                     # Backspace all the user input
                     self.backspace(backspace_count)
                     # Write the function output
-                    self.write(output)
+                    if isinstance(output, str):
+                        self.write(output)
                 except:
                     error_message = ['Unhandled exception when processing bulk input']
                     error_message.append(f'{self.bulk["func"].__name__ = }')
@@ -878,8 +896,7 @@ class Hotstrings(QObject):
 
     def set_clipboard(self, text):
         if not self.wayland:
-            pyperclip.copy(text)
-            return
+            return pyperclip.copy(text)
         if isinstance(text, str):
             cmd = (
                 f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 '
@@ -968,22 +985,9 @@ class Hotstrings(QObject):
             self.pause_menu_item.setText('Pause')
             self.tray_icon.setIcon(QIcon(self.normal_icon))
 
-    def wayland_type(self, text):
-        clipboard = self.get_clipboard()
-        self.set_clipboard(text)
-        # This code would be nice, but does not work for whatever reason
-        #with self.keyboard.pressed(keyboard.Key.ctrl):
-        #    self.keyboard.tap('v')
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 1)
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 0)
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 0)
-        self.ui.write(ecodes.EV_SYN, 0, 0)
-        self.set_clipboard(clipboard)
-
     def write(self, text):
         """Writes the provided text"""
-        if not text: return
+        if not text or not isinstance(text, str): return
         text = text.encode('utf-8').decode('utf-8')
         while '\n' in text:
             # It works without doing this, but it works as if just pressing 'enter'
@@ -991,18 +995,47 @@ class Hotstrings(QObject):
             # So this enters linebreaks as shift+enter instead, to avoid that
             index = text.index('\n')
             if self.wayland:
-                self.wayland_type(text[:index])
+                self.write_wayland(text[:index])
+            elif self.linux:
+                self.write_linux(text)
             else:
                 self.keyboard.type(text[:index])
             with self.keyboard.pressed(keyboard.Key.shift):
                 self.keyboard.tap(keyboard.Key.enter)
             text = text[index + 1:]
         if self.wayland:
-            self.wayland_type(text)
+            self.write_wayland(text)
+        elif self.linux:
+            self.write_linux(text)
         else:
             self.keyboard.type(text)
         # Save the last output, which is used to define the special '_' variable
         self.last_output = text
+
+    def write_linux(self, text):
+        """Writes the provided text, avoids using pynput's self.keyboard.type to do so due to an X11-specific bug with it"""
+        clipboard = self.get_clipboard()
+        self.set_clipboard(text)
+        with self.keyboard.pressed(keyboard.Key.ctrl):
+            self.keyboard.tap(keyboard.KeyCode.from_char('v'))
+        # Without the sleep before restoring the clipboard, the pasted content is sometimes just the restored clipboard content
+        time.sleep(.1)
+        self.set_clipboard(clipboard)
+
+    def write_wayland(self, text):
+        """Writes the provided text, works in Wayland"""
+        clipboard = self.get_clipboard()
+        self.set_clipboard(text)
+        # This code would be nice, but does not work for whatever reason
+        # It behaves more like Alt+V than Ctrl+V
+        #with self.keyboard.pressed(keyboard.Key.ctrl):
+        #    self.keyboard.tap(keyboard.KeyCode.from_char('v'))
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 1)
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 0)
+        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 0)
+        self.ui.write(ecodes.EV_SYN, 0, 0)
+        self.set_clipboard(clipboard)
 
 def main():
     hotstrings = Hotstrings(QApplication([]))
