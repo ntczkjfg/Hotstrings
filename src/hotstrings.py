@@ -7,11 +7,14 @@ from pathlib import Path
 import re
 import subprocess
 import traceback
-import os
+import platform
 
-linux = os.name == 'posix' and os.uname().sysname == 'Linux'
-wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
-if linux or wayland:
+linux = platform.system() == 'Linux'
+if linux:
+    wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
+else:
+    wayland = False
+if wayland:
     from evdev import UInput, ecodes
 if not wayland:
     import pyperclip
@@ -27,12 +30,12 @@ import bulk_functions as bulk
 from unit_tests import unit_tests
 from macro_settings import Macro_Settings
 
-
 logging.basicConfig(
     filename='log.txt',
     level=logging.ERROR,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+logging.getLogger().setLevel(logging.ERROR)
 
 class Hotstrings(QObject):
     macro_signal = pyqtSignal()
@@ -42,7 +45,7 @@ class Hotstrings(QObject):
     def __init__(self, app):
         super().__init__()
         self.app = app
-        self.linux = os.name == 'posix' and os.uname().sysname == 'Linux'
+        self.linux = platform.system() == 'Linux'
         if self.linux:
             self.wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
         else:
@@ -373,10 +376,12 @@ class Hotstrings(QObject):
             self.paused_icon = QIcon(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
 
     def find_wayland_user(self):
-        for uid_str in os.listdir('/run/user'):
-            path = f'/run/user/{uid_str}/wayland-0'
-            if os.path.exists(path):
+        for uid_str in Path('/run/user').iterdir():
+            path = uid_str / 'wayland-0'
+            print(f'{path = }')
+            if path.exists():
                 try:
+                    uid_str = uid_str.name
                     username = subprocess.check_output(
                         ['getent', 'passwd', uid_str],
                         text=True
@@ -386,23 +391,26 @@ class Hotstrings(QObject):
                     continue
         return None, None
 
-    def get_clipboard(self):
+    def get_clipboard(self, text_only = True):
         if not self.wayland:
+            # This actually works fine in wayland, but pyperclip.copy() does not
+            # So for consistency I use wl-clipboard for both operations in wayland for now
             return pyperclip.paste()
-        cmd = (
-            f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 '
-            f'wl-paste'
-        )
+        # -n flag suppresses the newline otherwise appended to the end of the output
+        cmd = f'XDG_RUNTIME_DIR=/run/user/{self.uid} wl-paste -n'
         result = subprocess.run(
             ['su', '-', self.username, '-c', cmd],
             capture_output=True
         )
         if result.returncode == 0:
-            clipboard = result.stdout.strip()
+            clipboard = result.stdout
             try:
                 clipboard = clipboard.decode('utf-8')
                 return clipboard
             except UnicodeDecodeError:
+                # Contains something non-text, like an image or something
+                if text_only:
+                    return ''
                 return clipboard
         else:
             return ''
@@ -895,30 +903,23 @@ class Hotstrings(QObject):
         return new_macros
 
     def set_clipboard(self, text):
+        #return pyperclip.copy(text)
         if not self.wayland:
+            # pyperclip works in wayland, but the copy function is very slow for some reason
             return pyperclip.copy(text)
         if isinstance(text, str):
-            cmd = (
-                f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 '
-                f'wl-copy'
-            )
+            cmd = f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 wl-copy'
             subprocess.run(
                 ['su', '-', self.username, '-c', cmd],
                 input=text,
                 text=True
             )
         elif isinstance(text, bytes):
-            cmd = (
-                f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 '
-                f'wl-copy --type image/png'
-            )
-            proc = subprocess.Popen(
+            cmd = f'XDG_RUNTIME_DIR=/run/user/{self.uid} wl-copy'
+            subprocess.run(
                 ['su', '-', self.username, '-c', cmd],
-                stdin=subprocess.PIPE
+                input=text
             )
-            proc.stdin.write(text)
-            proc.stdin.close()
-            proc.wait()
 
     def spawn_macro_settings(self, macro = None):
         """Opens the window to configure and save macros"""
@@ -1014,20 +1015,20 @@ class Hotstrings(QObject):
 
     def write_linux(self, text):
         """Writes the provided text, avoids using pynput's self.keyboard.type to do so due to an X11-specific bug with it"""
-        clipboard = self.get_clipboard()
+        clipboard = self.get_clipboard(text_only = False)
         self.set_clipboard(text)
         with self.keyboard.pressed(keyboard.Key.ctrl):
             self.keyboard.tap(keyboard.KeyCode.from_char('v'))
         # Without the sleep before restoring the clipboard, the pasted content is sometimes just the restored clipboard content
-        time.sleep(.1)
+        time.sleep(.15)
         self.set_clipboard(clipboard)
 
     def write_wayland(self, text):
         """Writes the provided text, works in Wayland"""
-        clipboard = self.get_clipboard()
+        clipboard = self.get_clipboard(text_only = False)
         self.set_clipboard(text)
         # This code would be nice, but does not work for whatever reason
-        # It behaves more like Alt+V than Ctrl+V
+        # Gets interpreted more like Alt+v than Ctrl+v
         #with self.keyboard.pressed(keyboard.Key.ctrl):
         #    self.keyboard.tap(keyboard.KeyCode.from_char('v'))
         self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
