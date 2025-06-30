@@ -2,3 +2,4 @@ log.txt
 settings.json
 /src/__pycache__/
 venv/
+*.pyc

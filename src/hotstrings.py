@@ -15,11 +15,12 @@ if linux:
 else:
     wayland = False
 if wayland:
-    from evdev import UInput, ecodes
+    from evdev import UInput, ecodes, InputDevice
+    from evput import keyboard
 if not wayland:
     import pyperclip
+    from pynput import keyboard, mouse
 
-from pynput import keyboard, mouse
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu,
@@ -45,6 +46,7 @@ class Hotstrings(QObject):
     def __init__(self, app):
         super().__init__()
         self.app = app
+        self.app.setStyle('fusion')
         self.linux = platform.system() == 'Linux'
         if self.linux:
             self.wayland = 'wayland' in subprocess.run(['ps', '-e', '-o', 'comm'], stdout=subprocess.PIPE).stdout.decode('utf-8').lower()
@@ -146,18 +148,18 @@ class Hotstrings(QObject):
             maxlen = max(maxlen, len(key))
         self.user_input = deque(maxlen = 2*maxlen)
         self.create_tray_icon()
-        self.mouse_listener = mouse.Listener()
+        if not self.wayland:
+            self.mouse_listener = mouse.Listener()
         self.keyboard_listener = keyboard.Listener()
         self.create_hooks()
         self.keyboard = keyboard.Controller()
-        self.mouse = mouse.Controller()
+        if not self.wayland:
+            self.mouse = mouse.Controller()
         self.pressed = set()
         if self.wayland:
             self.username, self.uid = self.find_wayland_user()
             if not self.username:
                 raise RuntimeError('No active Wayland user found')
-            self.ui = UInput({ecodes.EV_KEY: [ecodes.KEY_LEFTCTRL, ecodes.KEY_V],
-                              ecodes.EV_SYN: []})
 
     def backspace(self, n):
         """Sends n backspace presses"""
@@ -342,7 +344,7 @@ class Hotstrings(QObject):
         self.clear_hooks()
         self.tray_icon.hide()
         if self.wayland:
-            self.ui.close()
+            self.keyboard.close()
         self.app.quit()
 
     def find_tray_icons(self):
@@ -378,7 +380,6 @@ class Hotstrings(QObject):
     def find_wayland_user(self):
         for uid_str in Path('/run/user').iterdir():
             path = uid_str / 'wayland-0'
-            print(f'{path = }')
             if path.exists():
                 try:
                     uid_str = uid_str.name
@@ -998,9 +999,10 @@ class Hotstrings(QObject):
             if self.wayland:
                 self.write_wayland(text[:index])
             elif self.linux:
-                self.write_linux(text)
+                self.write_linux(text[:index])
             else:
-                self.keyboard.type(text[:index])
+                self.write_linux(text[:index])
+                #self.keyboard.type(text[:index])
             with self.keyboard.pressed(keyboard.Key.shift):
                 self.keyboard.tap(keyboard.Key.enter)
             text = text[index + 1:]
@@ -1009,7 +1011,8 @@ class Hotstrings(QObject):
         elif self.linux:
             self.write_linux(text)
         else:
-            self.keyboard.type(text)
+            self.write_linux(text)
+            #self.keyboard.type(text)
         # Save the last output, which is used to define the special '_' variable
         self.last_output = text
 
@@ -1029,13 +1032,8 @@ class Hotstrings(QObject):
         self.set_clipboard(text)
         # This code would be nice, but does not work for whatever reason
         # Gets interpreted more like Alt+v than Ctrl+v
-        #with self.keyboard.pressed(keyboard.Key.ctrl):
-        #    self.keyboard.tap(keyboard.KeyCode.from_char('v'))
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 1)
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_V, 0)
-        self.ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 0)
-        self.ui.write(ecodes.EV_SYN, 0, 0)
+        with self.keyboard.pressed(keyboard.Key.ctrl):
+            self.keyboard.tap(keyboard.KeyCode.from_char('v'))
         self.set_clipboard(clipboard)
 
 def main():
@@ -1045,7 +1043,6 @@ def main():
             sys.__excepthook__(exc_type, exc_value, exc_tb)
         else:
             traceback.print_exception(exc_type, exc_value, exc_tb)
-        app.quit()
     #sys.excepthook = excepthook
     while not hotstrings.quit_requested:
         hotstrings.app.exec()
