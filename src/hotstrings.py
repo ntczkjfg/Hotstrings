@@ -1021,7 +1021,7 @@ class Hotstrings(QObject):
         clipboard = self.get_clipboard(text_only = False)
         self.set_clipboard(text)
         with self.keyboard.pressed(keyboard.Key.ctrl):
-            self.keyboard.tap(keyboard.KeyCode.from_char('v'))
+            self.keyboard.tap('v')
         # Without the sleep before restoring the clipboard, the pasted content is sometimes just the restored clipboard content
         time.sleep(.15)
         self.set_clipboard(clipboard)
@@ -1030,10 +1030,8 @@ class Hotstrings(QObject):
         """Writes the provided text, works in Wayland"""
         clipboard = self.get_clipboard(text_only = False)
         self.set_clipboard(text)
-        # This code would be nice, but does not work for whatever reason
-        # Gets interpreted more like Alt+v than Ctrl+v
         with self.keyboard.pressed(keyboard.Key.ctrl):
-            self.keyboard.tap(keyboard.KeyCode.from_char('v'))
+            self.keyboard.tap('v')
         self.set_clipboard(clipboard)
 
 def main():
