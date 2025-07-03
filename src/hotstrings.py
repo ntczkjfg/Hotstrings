@@ -15,8 +15,7 @@ if linux:
 else:
     wayland = False
 if wayland:
-    from evdev import UInput, ecodes, InputDevice
-    from evput import keyboard
+    from evput import keyboard, mouse
 if not wayland:
     import pyperclip
     from pynput import keyboard, mouse
@@ -160,6 +159,10 @@ class Hotstrings(QObject):
             self.username, self.uid = self.find_wayland_user()
             if not self.username:
                 raise RuntimeError('No active Wayland user found')
+            self.env = {
+            'XDG_RUNTIME_DIR': f'/run/user/{self.uid}',
+            'WAYLAND_DISPLAY': 'wayland-0'
+            }
 
     def backspace(self, n):
         """Sends n backspace presses"""
@@ -263,10 +266,9 @@ class Hotstrings(QObject):
     def create_hooks(self):
         """Removes any existing hooks, then creates all the usual ones"""
         self.clear_hooks()
-        if not self.wayland:
-            # Clicking the mouse clears input - makes it impossible to determine what was actually typed
-            self.mouse_listener = mouse.Listener(on_click = self.clear_input)
-            self.mouse_listener.start()
+        # Clicking the mouse clears input - makes it impossible to determine what was actually typed
+        self.mouse_listener = mouse.Listener(on_click = self.clear_input)
+        self.mouse_listener.start()
         self.keyboard_listener = keyboard.Listener(on_press = self.handle_input_wrapper,
                                                    on_release = lambda key, injected: self.get_key_name(key, remove_from_pressed = True))
         self.keyboard_listener.start()
@@ -343,8 +345,7 @@ class Hotstrings(QObject):
         self.quit_requested = True
         self.clear_hooks()
         self.tray_icon.hide()
-        if self.wayland:
-            self.keyboard.close()
+        del self.keyboard
         self.app.quit()
 
     def find_tray_icons(self):
@@ -397,14 +398,14 @@ class Hotstrings(QObject):
             # This actually works fine in wayland, but pyperclip.copy() does not
             # So for consistency I use wl-clipboard for both operations in wayland for now
             return pyperclip.paste()
+        # One benefit of not using pyperclip is we can handle the clipboard containing non-text data
         # -n flag suppresses the newline otherwise appended to the end of the output
-        cmd = f'XDG_RUNTIME_DIR=/run/user/{self.uid} wl-paste -n'
-        result = subprocess.run(
-            ['su', '-', self.username, '-c', cmd],
-            capture_output=True
-        )
-        if result.returncode == 0:
-            clipboard = result.stdout
+        p = subprocess.Popen(['su', '--preserve-environment', self.username, '-c', 'wl-paste -n'],
+                             stdout = subprocess.PIPE,
+                             close_fds = True,
+                             env = self.env)
+        clipboard, _stderr = p.communicate()
+        if _stderr is None:
             try:
                 clipboard = clipboard.decode('utf-8')
                 return clipboard
@@ -904,23 +905,17 @@ class Hotstrings(QObject):
         return new_macros
 
     def set_clipboard(self, text):
-        #return pyperclip.copy(text)
         if not self.wayland:
             # pyperclip works in wayland, but the copy function is very slow for some reason
             return pyperclip.copy(text)
+        p = subprocess.Popen(['su', '--preserve-environment', self.username, '-c', 'wl-copy'],
+                             stdin=subprocess.PIPE,
+                             close_fds=True,
+                             env = self.env)
         if isinstance(text, str):
-            cmd = f'XDG_RUNTIME_DIR=/run/user/{self.uid} WAYLAND_DISPLAY=wayland-0 wl-copy'
-            subprocess.run(
-                ['su', '-', self.username, '-c', cmd],
-                input=text,
-                text=True
-            )
+            p.communicate(input=text.encode('utf-8'))
         elif isinstance(text, bytes):
-            cmd = f'XDG_RUNTIME_DIR=/run/user/{self.uid} wl-copy'
-            subprocess.run(
-                ['su', '-', self.username, '-c', cmd],
-                input=text
-            )
+            p.communicate(input=text)
 
     def spawn_macro_settings(self, macro = None):
         """Opens the window to configure and save macros"""
@@ -1028,6 +1023,7 @@ class Hotstrings(QObject):
 
     def write_wayland(self, text):
         """Writes the provided text, works in Wayland"""
+        #return self.keyboard.type(text)
         clipboard = self.get_clipboard(text_only = False)
         self.set_clipboard(text)
         with self.keyboard.pressed(keyboard.Key.ctrl):
